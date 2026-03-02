@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sea Bright, NJ — Tidal Flooding Dashboard</title>
+  <title>Stone Harbor, NJ — Tidal Flooding Dashboard</title>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <!-- Leaflet (map) -->
@@ -898,8 +898,8 @@ a.brand *{
       </div>
 
       <div class="brandTitle">
-        <div class="kicker">USGS 01412150 · Sea Bright, NJ</div>
-        <div class="name">Sea Bright Tidal Flooding Dashboard</div>
+        <div class="kicker">USGS 01412150 · Stone Harbor, NJ</div>
+        <div class="name">Stone Harbor Tidal Flooding Dashboard</div>
       </div>
     </a>
 
@@ -1034,15 +1034,15 @@ a.brand *{
     <div class="stages" aria-label="Flood stages">
       <div class="stage">
         <div class="stageName">Minor</div>
-        <div class="badge" id="minorBadge" style="color:var(--minor)">5.20–6.20 ft</div>
+        <div class="badge" id="minorBadge" style="color:var(--minor)">6.10–7.10 ft</div>
       </div>
       <div class="stage">
         <div class="stageName">Moderate</div>
-        <div class="badge" id="moderateBadge" style="color:var(--moderate)">6.20–7.20 ft</div>
+        <div class="badge" id="moderateBadge" style="color:var(--moderate)">7.10–8.10 ft</div>
       </div>
       <div class="stage">
         <div class="stageName">Major</div>
-        <div class="badge" id="majorBadge" style="color:var(--major)">≥ 7.20 ft</div>
+        <div class="badge" id="majorBadge" style="color:var(--major)">≥ 8.10 ft</div>
       </div>
     </div>
   </div>
@@ -1279,9 +1279,9 @@ const DATUMS = ["MLLW", "NAVD88", "MSL", "MHHW"]; // cycle order
 // From  table (Gauge Zero row): datum = MLLW + offset
 const OFFSET_FROM_MLLW = {
   MLLW:   0.00,
-  NAVD88: -2.10,
-  MSL:    -1.87,
-  MHHW:   -3.88
+  NAVD88: -2.71,
+  MSL:    -2.31,
+  MHHW:   -4.74
 };
 
 function mllwToDatum(ft, datum){
@@ -1316,27 +1316,27 @@ function fromDisplayToNavd(displayFt){
 
 
 /* USGS observed (15-min IV). */
-const USGS_SITE="01407600";
+const USGS_SITE="01411360";
 
 /* Water level ONLY (tide elevation NAVD88). */
 const USGS_PARAM_PRIMARY = "72279";
 
 /* NOAA CO-OPS predictions */
-const COOPS_STATION="8531804";
+const COOPS_STATION="8535581";
 const COOPS_APP="cupajoe.live";
 const COOPS_DATUM="MLLW";
 const COOPS_INTERVAL="6";
 const COOPS_TZ="gmt";
 
       /* Tide-clock settings for crest-anchored highs (NOAA hilo predictions) */
-const NOAA_STATION_TIDECLOCK = "8531804"; // same station as COOPS_STATION (Sea Bright)
+const NOAA_STATION_TIDECLOCK = "8535581"; // same station as COOPS_STATION (Stone Harbor)
 const CREST_WINDOW_HOURS = 2;             // search max within ±2 hours of predicted crest
 const REQUIRE_WITHIN_HOURS = 1;           // must have at least one obs point within ±1 hour
 
 
 /* Flood thresholds (from  table) */
 const THRESH = {
-  MLLW:  { minorLow:5.20, moderateLow:6.20, majorLow:7.20 },
+  MLLW:  { minorLow:6.10, moderateLow:7.10, majorLow:8.10 },
   NAVD88:{ minorLow:3.10, moderateLow:4.10, majorLow:5.10 },
   MSL:   { minorLow:3.33, moderateLow:4.33, majorLow:5.33 },
   MHHW:  { minorLow:1.32, moderateLow:2.32, majorLow:3.32 }
@@ -1400,15 +1400,15 @@ const TOP_TEN_MLLW = [
   {date:"03-13-2010", ft:7.45},
   {date:"01-13-2024", ft:7.35},
   {date:"10-27-2018", ft:7.30},
-  {date:"12-23-2022", ft:7.29},
-  {date:"02-02-2021", ft:7.26},
+  {date:"12-23-2022", ft:8.19},
+  {date:"02-02-2021", ft:8.16},
   {date:"01-24-2017", ft:7.18}
 ];
 
     /* =========================
 MAP — Leaflet gauge map
 ========================= */
-const DEFAULT_GAUGE_ID = "01407600"; // Sea Bright USGS
+const DEFAULT_GAUGE_ID = "01411360"; // Stone Harbor USGS
 const DEFAULT_GAUGE_ZOOM = 12;       // adjust if you want closer (13 = tighter)
 // Edit these whenever you want (lat/lon + label + link)
 const GAUGES = [
@@ -1430,7 +1430,7 @@ const GAUGES = [
   { name:"Mantoloking (Barnegat Bay at Mantoloking)", agency:"USGS", id:"01408168", lat:40.040556, lon:-74.054444 },
   { name:"Manasquan (Watson Creek at Manasquan)", agency:"USGS", id:"01408048", lat:40.111667, lon:-74.044722 },
   { name:"Belmar (Shark River at Belmar)", agency:"USGS", id:"01407770", lat:40.179167, lon:-74.038333 },
-  { name:"Sea Bright (Shrewsbury River at Sea Bright)", agency:"USGS", id:"01407600", lat:40.365556, lon:-73.974722 },
+  { name:"Sea Bright (Shrewsbury River at Sea Bright)", agency:"USGS", id:"01411360", lat:40.365556, lon:-73.974722 },
   { name:"Keansburg (Raritan Bay at Keansburg)", agency:"USGS", id:"01407081", lat:40.449167, lon:-74.147500 },
 
   // --- NOAA tide gauges ---
@@ -1501,7 +1501,7 @@ function ensureGaugeMap(){
     bounds.push([g.lat, g.lon]);
   }
 
-// Default view = Sea Bright gauge
+// Default view = Stone Harbor gauge
 const def = GAUGES.find(g => String(g.id) === DEFAULT_GAUGE_ID);
 
 if(def){
@@ -2216,11 +2216,11 @@ async function fetchObservedSeries({startISO=null,endISO=null,period=null}={}){
 }
 
 /* =========================
-NOAA/NWS NWPS official forecast (SBIN4) -> we resample to 15-min later
+NOAA/NWS NWPS official forecast (SHBN4) -> we resample to 15-min later
 Replaces CO-OPS predictions block.
 Returns MLLW ft as [{t: ISO8601, ft: Number}] plus issuedTime for UI.
 ========================= */
-const NWPS_GAUGE = "SBIN4";
+const NWPS_GAUGE = "SHBN4";
 const NWPS_STAGEFLOW_URL = `https://api.water.noaa.gov/nwps/v1/gauges/${NWPS_GAUGE}/stageflow`;
 
 /* Clip to N hours from the first point (keeps  existing 72h logic consistent). */
