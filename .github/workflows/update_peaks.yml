@@ -1,0 +1,48 @@
+name: Peaks Cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      backfill_from:
+        description: "Optional: backfill from year (e.g., 2000)"
+        required: false
+      backfill_to:
+        description: "Optional: backfill to year (e.g., 2026)"
+        required: false
+  schedule:
+    - cron: "*/30 * * * *"  # every 30 minutes
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run updater
+        run: |
+          if [ -n "${{ inputs.backfill_from }}" ] && [ -n "${{ inputs.backfill_to }}" ]; then
+            node tools/update_peaks_navd88.js --backfill-from=${{ inputs.backfill_from }} --backfill-to=${{ inputs.backfill_to }}
+          else
+            node tools/update_peaks_navd88.js
+          fi
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/peaks_navd88.json
+          if git diff --cached --quiet; then
+            echo "No changes."
+            exit 0
+          fi
+          git commit -m "Update peaks cache"
+          git push

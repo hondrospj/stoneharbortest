@@ -1,0 +1,60 @@
+
+
+name: Update PETSS Forecast
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 3 hours (UTC)
+    - cron: "15 */3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-petss-forecast
+  cancel-in-progress: true
+
+jobs:
+  update-petss:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run PETSS forecast updater
+        env:
+          PETSS_STID: "8531804"   # <-- your station
+          PETSS_DATUM: "MLLW"     # metadata only
+        run: |
+          set -euo pipefail
+          echo "Running PETSS forecast script…"
+          echo "STID=$PETSS_STID"
+          echo "DATUM=$PETSS_DATUM"
+          node -v
+          pwd
+          node tools/update_petss_forecast.js
+
+      - name: Commit & push if changed
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Commit only the forecast products (+ debug header snapshot, optional)
+          git add data/petss_forecast.csv data/petss_forecast.json data/petss_meta.json data/petss_station_debug.txt || true
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update PETSS forecast"
+          git push

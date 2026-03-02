@@ -1,0 +1,4504 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sea Bright, NJ — Tidal Flooding Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Leaflet (map) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+
+    :root{
+      --bg:#0b1220;
+      --text:#eaf0ff;
+      --muted:#a9b6d3;
+      --line:rgba(255,255,255,.085);
+      --ok:#2dd4bf;
+      --minor:#fbbf24;
+      --moderate:#fb7185;
+      --major:#a78bfa;
+      --shadow:0 22px 70px rgba(0,0,0,.40);
+      --radius:18px;
+
+      /* NO “glow” backgrounds at all (removes greenish banding on iOS) */
+      --card:rgba(255,255,255,.035);
+      --card2:rgba(0,0,0,.18);
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    html{background:var(--bg);}
+    body{
+      margin:0;
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:var(--bg);   /* solid only */
+      color:var(--text);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      overflow-x:hidden;
+    }
+    /* KILL any old global overlay gradient */
+    body:before{content:none !important;}
+
+.wrap{
+  width: min(96vw, 1600px);
+  margin: 0 auto;
+  padding: 16px 16px 28px;
+}
+
+    .banner{
+      display:none;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(251,113,133,.12);
+      border-radius:14px;
+      padding:12px 12px;
+      margin-bottom:12px;
+      box-shadow:var(--shadow);
+    }
+    .banner b{font-weight:950}
+    .banner .small{color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.25}
+
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+   .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .brand{display:flex;align-items:center;gap:12px}
+/*  Logo container stays inside the header */
+.brandLogo{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  padding:4px 6px;      /* thin white edge */
+  background:#ffffff;
+
+  border-radius:6px;    /* 👈 small corner = square look */
+}
+/* remove any border you had before */
+.brandLogo img{
+  height:46px;
+  width:auto;
+  max-width:240px;
+  display:block;
+  object-fit:contain;
+  background:transparent;
+}
+
+
+
+
+ .kicker{
+  color:var(--muted);
+  font-weight:850;
+  font-size:16px;   /* small line */
+  letter-spacing:.2px;
+  text-transform:uppercase
+}
+
+.name{
+  font-size:32px;   /* big title */
+  font-weight:950;
+  letter-spacing:.2px
+}
+
+    .pill{
+      display:flex;align-items:center;gap:10px;
+      padding:10px 12px;border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.16);
+      box-shadow:var(--shadow);
+      font-weight:950;font-size:12.5px;white-space:nowrap;
+    }
+    .dot{width:9px;height:9px;border-radius:999px;background:var(--ok);box-shadow:0 0 0 4px rgba(45,212,191,.16)}
+
+    /* --- Mobile header overflow fix (kept) --- */
+    .brand, .brandTitle { min-width: 0; }
+    .kicker, .name { min-width: 0; }
+    .kicker, .name{
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    #lastPill, #stagePill, #datumBtn{ min-width:0; }
+    .pill{ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+
+    @media (max-width: 720px){
+      .top{
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        gap:10px;
+        text-align:center;
+      }
+      /* ===== RIGHT SIDE HEADER FIX ===== */
+.topRight{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:nowrap;
+  min-width:0;
+}
+
+/* Last updated box stretches nicely */
+#lastPill{
+  flex:1 1 320px;
+  min-width:240px;
+}
+
+/* Keep datum + status tight */
+.datumPick,
+#stagePill{
+  flex:0 0 auto;
+}
+
+/* Medium screens (ipad-ish) */
+@media (max-width: 980px){
+  .topRight{
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+
+  #lastPill{
+    flex:1 1 100%;
+    min-width:0;
+  }
+}
+
+/* Mobile clean stack */
+@media (max-width: 720px){
+  .topRight{
+    flex-direction:column;
+    align-items:stretch;
+    gap:10px;
+  }
+
+  .datumPick,
+  #lastPill,
+  #stagePill{
+    width:100%;
+    justify-content:center;
+  }
+}
+
+   .brand{
+  width:100%;
+  justify-content:flex-start;  /*   keep logo left */
+  text-align:left;
+}
+.brandTitle{
+  align-items:flex-start;      /*   keep text aligned right of logo */
+  text-align:left;
+}
+
+      .kicker, .name{
+        white-space:normal;
+        overflow:visible;
+        text-overflow:clip;
+      }
+      .top > div{
+        width:100%;
+        justify-content:center !important;
+        flex-wrap:wrap;
+      }
+      .pill, .btn{ max-width:100%; }
+    }
+
+    /* =========================
+   MINI "SWITCH" (segmented control)
+   ========================= */
+.seg{
+  display:inline-flex;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:var(--shadow);
+}
+
+.segBtn{
+  appearance:none;
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  font-weight:950;
+  font-size:12px;
+  letter-spacing:.12px;
+  text-transform:uppercase;
+  padding:10px 12px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+.segBtn:hover{ filter:brightness(1.08); }
+
+.segBtn.isActive{
+  color:var(--text);
+  background:rgba(255,255,255,.08);
+}
+
+/* Optional: color hint on active */
+.segBtn.isActive[data-val="minor"]{ box-shadow: inset 0 -2px 0 rgba(251,191,36,.75); }
+.segBtn.isActive[data-val="moderate"]{ box-shadow: inset 0 -2px 0 rgba(251,113,133,.75); }
+.segBtn.isActive[data-val="major"]{ box-shadow: inset 0 -2px 0 rgba(167,139,250,.75); }
+    .segBtn.isActive[data-val="total"]{ box-shadow: inset 0 -2px 0 rgba(234,240,255,.65); }
+
+
+/* Optional: color hint on active */
+.segBtn.isActive[data-val="minor"]{ box-shadow: inset 0 -2px 0 rgba(251,191,36,.75); }
+.segBtn.isActive[data-val="moderate"]{ box-shadow: inset 0 -2px 0 rgba(251,113,133,.75); }
+.segBtn.isActive[data-val="major"]{ box-shadow: inset 0 -2px 0 rgba(167,139,250,.75); }
+.segBtn.isActive[data-val="total"]{ box-shadow: inset 0 -2px 0 rgba(234,240,255,.65); }
+
+/* =========================
+   Monthly table column hiding + CENTERED (single-metric)
+   Columns:
+   1 Month
+   2 Avg Total
+   3 Avg Minor
+   4 Avg Moderate
+   5 Avg Major
+   ========================= */
+
+#monthAvgTable{
+  width:100%;              /* full width so divider lines hit card edges */
+  border-collapse:collapse;
+  table-layout:fixed;
+}
+
+/* make the two visible columns split the space evenly */
+#monthAvgTable th,
+#monthAvgTable td{
+  text-align:center;
+  padding:14px 8px;
+}
+
+/* 2-column layout balance */
+#monthAvgTable th:first-child,
+#monthAvgTable td:first-child{
+  width:50%;
+}
+
+#monthAvgTable th:last-child,
+#monthAvgTable td:last-child{
+  width:50%;
+}
+/* --- TOTAL: show Month + Avg Total (col 2) --- */
+#monthAvgTable.show-total th:nth-child(3),
+#monthAvgTable.show-total td:nth-child(3),
+#monthAvgTable.show-total th:nth-child(4),
+#monthAvgTable.show-total td:nth-child(4),
+#monthAvgTable.show-total th:nth-child(5),
+#monthAvgTable.show-total td:nth-child(5){
+  display: none;
+}
+
+/* --- MINOR: show Month + Avg Minor (col 3) --- */
+#monthAvgTable.show-minor th:nth-child(2),
+#monthAvgTable.show-minor td:nth-child(2),
+#monthAvgTable.show-minor th:nth-child(4),
+#monthAvgTable.show-minor td:nth-child(4),
+#monthAvgTable.show-minor th:nth-child(5),
+#monthAvgTable.show-minor td:nth-child(5){
+  display: none;
+}
+
+/* --- MODERATE: show Month + Avg Moderate (col 4) --- */
+#monthAvgTable.show-moderate th:nth-child(2),
+#monthAvgTable.show-moderate td:nth-child(2),
+#monthAvgTable.show-moderate th:nth-child(3),
+#monthAvgTable.show-moderate td:nth-child(3),
+#monthAvgTable.show-moderate th:nth-child(5),
+#monthAvgTable.show-moderate td:nth-child(5){
+  display: none;
+}
+
+/* --- MAJOR: show Month + Avg Major (col 5) --- */
+#monthAvgTable.show-major th:nth-child(2),
+#monthAvgTable.show-major td:nth-child(2),
+#monthAvgTable.show-major th:nth-child(3),
+#monthAvgTable.show-major td:nth-child(3),
+#monthAvgTable.show-major th:nth-child(4),
+#monthAvgTable.show-major td:nth-child(4){
+  display: none;
+}
+
+
+    /* =========================
+OBVIOUS DATUM DROPDOWN
+========================= */
+.datumPick{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.06);
+  box-shadow:var(--shadow);
+}
+
+.datumLbl{
+  font-weight:950;
+  font-size:12px;
+  letter-spacing:.18px;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+
+.datumSelect{
+  appearance:auto;
+  cursor:pointer;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(0,0,0,.22);
+  color:var(--text);
+  font-weight:950;
+  font-size:13px;
+  min-width:120px;
+  outline:none;
+}
+
+.datumSelect:focus{
+  border-color:rgba(45,212,191,.45);
+  box-shadow:0 0 0 4px rgba(45,212,191,.12);
+}
+
+
+    /* =========================
+   Datum help "?" popover
+   ========================= */
+.datumHelpBtn{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(0,0,0,.22);
+  color:var(--text);
+  font-weight:950;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  user-select:none;
+}
+.datumHelpBtn:hover{ filter:brightness(1.08); }
+.datumHelpBtn:focus{
+  outline:none;
+  border-color:rgba(45,212,191,.45);
+  box-shadow:0 0 0 4px rgba(45,212,191,.12);
+}
+
+/* popover */
+.datumPick{ position:relative; } /* anchor the popover */
+.datumHelpPop{
+  position:absolute;
+  top:calc(100% + 10px);
+  right:10px;
+  width:min(380px, 82vw);
+  background:rgba(10,16,28,.98);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:14px;
+  box-shadow:var(--shadow);
+  padding:12px 12px;
+  display:none;
+  z-index:9999;
+}
+.datumHelpPop.isOpen{ display:block; }
+
+.datumHelpTitle{
+  font-weight:950;
+  font-size:12px;
+  letter-spacing:.18px;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+.datumHelpLine{
+  font-size:12.5px;
+  line-height:1.3;
+  color:rgba(234,240,255,.92);
+  margin:6px 0;
+}
+.datumHelpLine b{ color:var(--text); }
+
+    .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-top:10px}
+    @media(max-width:980px){.grid{grid-template-columns:1fr}}
+
+    .card{
+      background:var(--card);        /* flat */
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px;
+      overflow:hidden;
+      position:relative;
+
+      /* keep iOS hardening, but NO overlay gradients */
+      isolation:isolate;
+      contain:paint;
+      transform:translateZ(0);
+      -webkit-transform:translateZ(0);
+    }
+    /* KILL glow overlays inside cards */
+    .card:before{content:none !important;}
+    .card>*{position:relative;z-index:1}
+
+    .hrow{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .hrow h2{margin:0;font-size:12.5px;letter-spacing:.22px;text-transform:uppercase;color:var(--muted);font-weight:950}
+
+    /* ===== Live Conditions layout ===== */
+    .liveGrid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:8px;
+    }
+    @media(max-width:820px){ .liveGrid{grid-template-columns:1fr;} }
+
+    .panel{
+      background:var(--card2);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      position:relative;
+      overflow:hidden;
+      min-height:168px;
+
+      isolation:isolate;
+      contain:paint;
+      transform:translateZ(0);
+      -webkit-transform:translateZ(0);
+    }
+    /* KILL glow overlays inside panels */
+    .panel:before{content:none !important;}
+    .panel>*{position:relative;z-index:1}
+
+    .panelTitle{
+      color:var(--muted);
+      font-weight:950;
+      font-size:11.5px;
+      text-transform:uppercase;
+      letter-spacing:.2px;
+      text-align:center;
+      margin-bottom:10px;
+    }
+
+    /* TODAY */
+    .todayTop{
+      display:flex;
+      align-items:stretch;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .curBox{
+      flex:1 1 260px;
+      min-width:260px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.14);
+      border-radius:14px;
+      padding:10px 12px;
+      text-align:center;
+    }
+    .curLabel{
+      color:var(--muted);
+      font-weight:950;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.2px;
+      text-align:center;
+    }
+    .curRow{
+      display:flex;
+      align-items:baseline;
+      justify-content:center;
+      gap:10px;
+      margin-top:8px;
+    }
+    .curVal{
+      display:flex;
+      align-items:baseline;
+      justify-content:center;
+      gap:8px;
+      font-weight:950;
+      font-size:28px;
+      letter-spacing:.2px;
+      white-space:nowrap;
+    }
+    .curMeta{
+      margin-top:8px;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.25;
+      text-align:center;
+      display:none;
+    }
+
+    /* remove progress bar under Current water elevation */
+    .levelMeter{display:none !important;}
+    .levelFill{display:none !important;}
+
+    .todayRange{
+      flex:0 0 320px;
+      min-width:260px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.14);
+      border-radius:14px;
+      padding:10px 12px;
+      text-align:center;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+    .rangeRow{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:6px}
+    .rangeCol{min-width:140px}
+    .rangeLab{color:var(--muted);font-weight:950;font-size:11px;letter-spacing:.18px;text-transform:uppercase;text-align:center}
+    .rangeVal{font-weight:950;font-size:34px;line-height:1;margin-top:6px;white-space:nowrap;text-align:center}
+    .unit{color:var(--muted);font-size:12px;font-weight:950}
+    .rangeMeta{
+      margin-top:10px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.25;
+      text-align:center;
+      display:none;
+    }
+
+    .rangeWhen{
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:850;
+  letter-spacing:.15px;
+}
+
+
+    @media(max-width:520px){
+      .rangeVal{font-size:32px}
+      .curVal{font-size:26px}
+    }
+
+    /* OUTLOOK */
+    .outlookTop{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:10px;
+      align-items:stretch;
+      justify-items:stretch;
+      margin-bottom:10px;
+    }
+    @media(max-width:520px){
+      .outlookTop{grid-template-columns:1fr;}
+    }
+
+    .miniStat{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      font-weight:950;
+      font-size:12.5px;
+      white-space:nowrap;
+      text-align:center;
+      min-height:52px;
+      width:100%;
+    }
+    .miniChip{width:12px;height:12px;border-radius:99px;display:inline-block}
+    .miniStat b{font-weight:950}
+
+    .events{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-top:6px;
+    }
+    .event{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.14);
+      border-radius:14px;
+      padding:10px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .eventLeft{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      min-width:0;
+    }
+    .eventWhen{
+      font-weight:950;
+      font-size:13px;
+      letter-spacing:.1px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .eventSub{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .eventBadge{
+      font-weight:950;
+      font-size:12px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      white-space:nowrap;
+      flex:0 0 auto;
+    }
+    @media(max-width:520px){
+      .event{align-items:flex-start}
+      .eventWhen,.eventSub{white-space:normal}
+      .eventBadge{margin-left:auto}
+    }
+
+    /* Flood stage strip (stack on mobile so nothing goes off-screen) */
+    .stages{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:10px;
+      margin-top:10px;
+    }
+    @media(max-width:520px){
+      .stages{grid-template-columns:1fr;}
+    }
+
+    .stage{
+      background:var(--card2);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px 14px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      width:100%;
+      overflow:hidden;
+      text-align:center;
+    }
+    .stageName{
+      font-weight:950;
+      font-size:20px;
+      letter-spacing:.2px;
+      width:100%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      text-align:center;
+    }
+    .badge{
+      font-weight:950;
+      font-size:18px;
+      padding:10px 14px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      white-space:nowrap;
+      text-align:center;
+    }
+
+    .table{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--card2)}
+table{
+  width:100%;
+  border-collapse:collapse;
+  text-align:center;            /* center everything */
+}
+
+th,td{
+  padding:8px 6px;
+  border-bottom:1px solid var(--line);
+  font-size:13px;
+  text-align:center;            /* center each column */
+}
+
+th{
+  color:var(--muted);
+  font-weight:800;
+}
+
+td{
+  color:var(--text);
+}
+
+tr:last-child td{border-bottom:none}
+
+thead th{
+  text-transform:uppercase;
+  letter-spacing:.2px;
+  font-size:11px;
+  font-weight:950;
+}
+
+    .tag{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-weight:950;font-size:12px;white-space:nowrap}
+    .chip{width:9px;height:9px;border-radius:99px;display:inline-block}
+
+    /* ===== Threshold number text inside the pills ===== */
+.thNum{
+  font-weight:950;
+  margin-left:6px;
+  letter-spacing:.1px;
+}
+.thMinor{ color: var(--minor); }
+.thModer{ color: var(--moderate); }
+.thMajor{ color: var(--major); }
+
+
+    .chartWrapTall{height:320px;width:100%}
+    .chartWrap{height:240px;width:100%}
+    .foot{margin-top:10px;color:var(--muted);font-size:12.5px;line-height:1.25;text-align:center}
+
+    .filterRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    .input,.btn,select{
+      background:rgba(0,0,0,.18);
+      border:1px solid var(--line);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 10px;
+      font-weight:950;
+      font-size:13px;
+      outline:none
+    }
+    .input{min-width:240px}
+    .btn{cursor:pointer}
+    .btn:hover{filter:brightness(1.06)}
+    .hint{color:var(--muted);font-size:12.5px;line-height:1.25}
+
+    .btn:focus,.input:focus,select:focus{
+      border-color:rgba(45,212,191,.35);
+      box-shadow:0 0 0 4px rgba(45,212,191,.10);
+    }
+
+    /* Hide footer notes you called out */
+    #f48Meta{display:none !important;}
+    #curMeta{display:none !important;}
+
+    /* ==============================
+       ACCORDION SYSTEM (NEW)
+       ============================== */
+    details.acc{
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      background:var(--card);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    details.acc summary{list-style:none;cursor:pointer;}
+    details.acc summary::-webkit-details-marker{display:none;}
+
+    .accHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px;
+    }
+    .accTitle{
+      margin:0;
+      font-size:12.5px;
+      letter-spacing:.22px;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight:950;
+    }
+    .chev{
+      width:12px;
+      height:12px;
+      border-right:2px solid rgba(234,240,255,.7);
+      border-bottom:2px solid rgba(234,240,255,.7);
+      transform:rotate(-45deg);
+      transition:.18s;
+    }
+    details[open] .chev{transform:rotate(45deg);}
+    .accBody{padding:0 14px 14px 14px;}
+
+    /* =========================
+   MAP (Leaflet)
+   ========================= */
+#gaugeMap{
+  height: 360px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.20);
+}
+@media(max-width:520px){
+  #gaugeMap{ height: 320px; }
+}
+/* ===== FIX PURPLE TITLE AFTER CLICK ===== */
+
+/*   Fix purple visited link on the whole header click area */
+a.brand,
+a.brand:visited,
+a.brand:hover,
+a.brand:active,
+a.brand:focus{
+  color: var(--text) !important;
+  text-decoration: none !important;
+}
+
+/* Optional: if anything inside tries to inherit a link color */
+a.brand *{
+  color: inherit !important;
+}
+
+
+    /* =========================================
+   MAKE DATUM BAR BACKGROUND TRUE DARK/BLACK
+   ========================================= */
+
+.datumPick{
+  background:#050b16 !important;   /* deep black */
+  border:1px solid rgba(255,255,255,.18);
+}
+
+/* optional: make inner pill match darker style */
+.datumPick .datumSelect{
+  background:#020814 !important;
+}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <div class="banner" id="alertBanner">
+    <div><b id="alertTitle">Coastal Flood Advisory</b></div>
+    <div class="small" id="alertBody"></div>
+  </div>
+
+  <div class="top">
+    <a class="brand" href="https://cupajoe.live/" target="_blank" rel="noopener">
+      <div class="brandLogo">
+        <img src="assets/shorelysafe" alt="Cupajoe logo">
+      </div>
+
+      <div class="brandTitle">
+        <div class="kicker">USGS 01412150 · Sea Bright, NJ</div>
+        <div class="name">Sea Bright Tidal Flooding Dashboard</div>
+      </div>
+    </a>
+
+    <div class="topRight">
+<!-- OBVIOUS datum selector -->
+<div class="datumPick" aria-label="Datum selector">
+  <span class="datumLbl">Datum</span>
+
+  <select id="datumSelect" class="datumSelect" title="Choose datum">
+    <!-- options are filled by JS so order matches DATUMS -->
+  </select>
+
+  <!--   New help icon + popover -->
+  <button
+    class="datumHelpBtn"
+    id="datumHelpBtn"
+    type="button"
+    aria-label="What do these datums mean?"
+    aria-expanded="false"
+    aria-controls="datumHelpPop"
+    title="What do these datums mean?"
+  >?</button>
+
+  <div class="datumHelpPop" id="datumHelpPop" role="dialog" aria-hidden="true">
+    <div class="datumHelpTitle">Datum quick definitions</div>
+    <div class="datumHelpLine"><b>MLLW</b>: Mean Lower Low Water — the average of the lower of the two daily low tides.</div>
+    <div class="datumHelpLine"><b>MSL</b>: Mean Sea Level — the long-term average sea level over a standard period.</div>
+    <div class="datumHelpLine"><b>NAVD88</b>: North American Vertical Datum of 1988 — a geodetic land-based elevation reference used on maps and surveys.</div>
+    <div class="datumHelpLine"><b>MHHW</b>: Mean Higher High Water — the average of the higher of the two daily high tides.</div>
+  </div>
+</div>
+
+      <div class="pill" id="lastPill">Last updated: —</div>
+
+      <div class="pill" id="stagePill">
+        <span class="dot" id="stageDot"></span>
+        <span id="stageText">Loading…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1) Live Conditions (NOT accordion) -->
+  <div class="card">
+    <div class="hrow">
+      <h2>Live conditions</h2>
+      <div class="kicker" style="text-transform:none">Time Expressed In ET</div>
+    </div>
+
+    <div class="liveGrid">
+      <!-- TODAY (current + today's max/min) -->
+      <div class="panel">
+        <div class="panelTitle">Daily range (<span id="dailyRangeDate">—</span>)</div>
+
+        <div class="todayTop">
+          <div class="curBox">
+            <div class="curLabel">Current water elevation</div>
+
+            <div class="curRow">
+              <div class="curVal">
+                <span id="curFt">—</span>
+                <span class="unit" data-unit>ft MLLW</span>
+              </div>
+            </div>
+
+            <div class="levelMeter" aria-hidden="true">
+              <div class="levelFill" id="curFill"></div>
+            </div>
+
+            <div class="curMeta" id="curMeta">Updated: —</div>
+            <div class="curMeta" id="nearMeta" style="display:none"></div>
+          </div>
+
+          <div class="todayRange">
+            <div class="rangeRow">
+              <div class="rangeCol">
+                <div class="rangeLab">Max</div>
+                <div class="rangeVal">
+                  <span id="dayMaxFt">—</span>
+                  <span class="unit" data-unit>ft MLLW</span>
+                </div>
+                <div class="rangeWhen" id="dayMaxWhen">—</div>
+              </div>
+
+              <div class="rangeCol">
+                <div class="rangeLab">Min</div>
+                <div class="rangeVal">
+                  <span id="dayMinFt">—</span>
+                  <span class="unit" data-unit>ft MLLW</span>
+                </div>
+                <div class="rangeWhen" id="dayMinWhen">—</div>
+              </div>
+            </div>
+
+            <div class="rangeMeta" id="dayRangeMeta">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 72 HOUR FLOOD OUTLOOK (inside Live Conditions) -->
+      <div class="panel">
+        <div class="panelTitle">Flood outlook (Next 72 Hours)</div>
+
+        <div class="outlookTop" aria-label="Total flood hours by type">
+          <div class="miniStat">
+            <span class="miniChip" style="background:var(--minor)"></span>
+            Minor <b id="f48MinorHrs">—</b> hrs
+          </div>
+          <div class="miniStat">
+            <span class="miniChip" style="background:var(--moderate)"></span>
+            Moderate <b id="f48ModerHrs">—</b> hrs
+          </div>
+          <div class="miniStat">
+            <span class="miniChip" style="background:var(--major)"></span>
+            Major <b id="f48MajorHrs">—</b> hrs
+          </div>
+        </div>
+
+        <div class="events" id="f48List">
+          <div class="event">
+            <div class="eventLeft">
+              <div class="eventWhen">Loading…</div>
+              <div class="eventSub">—</div>
+            </div>
+            <div class="eventBadge" style="color:var(--muted)">—</div>
+          </div>
+        </div>
+
+        <div class="rangeMeta" id="f48Meta">—</div>
+      </div>
+    </div>
+
+    <div class="stages" aria-label="Flood stages">
+      <div class="stage">
+        <div class="stageName">Minor</div>
+        <div class="badge" id="minorBadge" style="color:var(--minor)">5.20–6.20 ft</div>
+      </div>
+      <div class="stage">
+        <div class="stageName">Moderate</div>
+        <div class="badge" id="moderateBadge" style="color:var(--moderate)">6.20–7.20 ft</div>
+      </div>
+      <div class="stage">
+        <div class="stageName">Major</div>
+        <div class="badge" id="majorBadge" style="color:var(--major)">≥ 7.20 ft</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:14px"></div>
+
+  <!-- 2) Observations & Predictions (NOT accordion) -->
+  <div class="card">
+    <div class="hrow">
+      <h2>Observations (USGS) & Predictions (NOAA)</h2>
+      <div class="kicker" style="text-transform:none"></div>
+    </div>
+
+    <div class="chartWrapTall">
+      <canvas id="tsChart"></canvas>
+    </div>
+
+    <div class="foot" id="threshKey" style="font-size:18px;">
+      <span class="tag" style="padding:10px 16px;">
+        <span class="chip" style="background:var(--minor); width:14px; height:14px;"></span>
+        Minor
+        <span class="thNum thMinor" id="thMinorTxt">—</span>
+      </span>
+
+      <span class="tag" style="padding:10px 16px;">
+        <span class="chip" style="background:var(--moderate); width:14px; height:14px;"></span>
+        Moderate
+        <span class="thNum thModer" id="thModerTxt">—</span>
+      </span>
+
+      <span class="tag" style="padding:10px 16px;">
+        <span class="chip" style="background:var(--major); width:14px; height:14px;"></span>
+        Major
+        <span class="thNum thMajor" id="thMajorTxt">—</span>
+      </span>
+    </div>
+
+    <div class="foot" id="fcNote"></div>
+    <div class="foot" id="txtNote"></div>
+  </div>
+
+  <div style="height:14px"></div>
+
+  <!-- 3) Cumulative flooding by day-of-year (Avg + Min/Max band) (NOT accordion) -->
+  <div class="card">
+    <div class="hrow">
+      <h2>Cumulative annual flooding</h2>
+      <div class="kicker" id="doyMeta">Computing…</div>
+    </div>
+
+    <div class="hint" id="doyHint"></div>
+
+    <div style="height:10px"></div>
+    <div class="chartWrapTall"><canvas id="doyCumChart"></canvas></div>
+
+    <div class="foot" id="doyNote"></div>
+  </div>
+
+  <div style="height:14px"></div>
+
+  <!-- 4) Flooding over the years bar chart (ACCORDION) -->
+  <details class="acc">
+    <summary class="accHeader">
+      <h2 class="accTitle">Flooding over the years</h2>
+      <span class="chev"></span>
+    </summary>
+
+    <div class="accBody">
+      <!-- Annual view switch -->
+      <div class="filterRow" style="margin-bottom:8px;">
+        <div class="seg" id="annualViewSeg" aria-label="Annual floods view">
+          <button class="segBtn isActive" type="button" data-val="total">Total</button>
+          <button class="segBtn" type="button" data-val="minor">Minor</button>
+          <button class="segBtn" type="button" data-val="moderate">Moderate</button>
+          <button class="segBtn" type="button" data-val="major">Major</button>
+        </div>
+      </div>
+
+      <div class="chartWrap"><canvas id="annualChart"></canvas></div>
+      <div class="foot" id="annualNote"></div>
+    </div>
+  </details>
+
+  <div style="height:14px"></div>
+
+  <!-- 5) Average Floods Per Month (ACCORDION) -->
+  <details class="acc">
+    <summary class="accHeader">
+      <h2 class="accTitle">Average number of floods per month</h2>
+      <span class="chev"></span>
+    </summary>
+
+    <div class="accBody">
+      <!-- Monthly view switch -->
+      <div class="filterRow" style="margin-bottom:8px;">
+        <div class="seg" id="monthViewSeg" aria-label="Monthly floods view">
+          <button class="segBtn isActive" type="button" data-val="total">Total</button>
+          <button class="segBtn" type="button" data-val="minor">Minor</button>
+          <button class="segBtn" type="button" data-val="moderate">Moderate</button>
+          <button class="segBtn" type="button" data-val="major">Major</button>
+        </div>
+      </div>
+
+      <div class="hint" id="monthAvgMeta">Computing…</div>
+      <div style="height:10px"></div>
+      <div class="chartWrap"><canvas id="monthAvgChart"></canvas></div>
+      <div style="height:10px"></div>
+
+<div class="table">
+  <table id="monthAvgTable" class="show-total" aria-label="Average floods by month of year">
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Average Total Number of Floods</th>
+        <th>Average Minor</th>
+        <th>Average Moderate</th>
+        <th>Average Major</th>
+      </tr>
+    </thead>
+    <tbody id="monthAvgBody"></tbody>
+  </table>
+</div>
+    </div>
+  </details>
+
+  <div style="height:14px"></div>
+
+  <!-- 6) Historic Flooding Filter (ACCORDION) -->
+  <details class="acc">
+    <summary class="accHeader">
+      <h2 class="accTitle">Historic flooding filter (enter a range)</h2>
+      <span class="chev"></span>
+    </summary>
+
+    <div class="accBody">
+      <div class="hint" id="histHelp">
+        Use any combination: Elevation range and/or Date range. Leave fields blank to ignore them.
+      </div>
+      <div style="height:8px"></div>
+
+      <div class="filterRow">
+        <input class="input" id="minElev" type="number" step="0.01" placeholder="Min (ft)" />
+        <input class="input" id="maxElev" type="number" step="0.01" placeholder="Max (ft)" />
+        <input class="input" id="fromDate" type="date" autocomplete="off" />
+        <input class="input" id="toDate" type="date" autocomplete="off" />
+        <select id="sortMode">
+          <option value="desc">Highest first</option>
+          <option value="asc">Lowest first</option>
+          <option value="recent">Most recent</option>
+        </select>
+        <button class="btn" id="applyBtn">Apply</button>
+        <button class="btn" id="resetBtn">Reset</button>
+      </div>
+
+      <div class="hint" id="histMeta">Loading…</div>
+      <div style="height:10px"></div>
+
+      <div class="table">
+        <table aria-label="Historic tides above threshold">
+          <thead>
+            <tr>
+              <th>Date/Time (EST)</th>
+              <th id="histUnitTh">Peak (ft MLLW)</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <div style="height:14px"></div>
+
+  <!-- 7) Top 10 Highest Tides (ACCORDION) -->
+  <details class="acc">
+    <summary class="accHeader">
+      <h2 class="accTitle">Top ten highest tides</h2>
+      <span class="chev"></span>
+    </summary>
+    <div class="accBody">
+      <div class="table">
+        <table aria-label="Top ten highest tides">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Date</th>
+              <th id="topTenUnitTh">Height (ft MLLW)</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="topTenBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <div style="height:14px"></div>
+
+  <!-- 8) NJ Tide Gauge Map (ACCORDION) -->
+  <details class="acc" id="mapAcc">
+    <summary class="accHeader">
+      <h2 class="accTitle">NJ tide gauge map</h2>
+      <span class="chev"></span>
+    </summary>
+
+    <div class="accBody">
+      <div id="gaugeMap"></div>
+      <div class="foot">Click a marker for station info.</div>
+    </div>
+  </details>
+
+  <div style="height:14px"></div>
+
+</div>   <!-- keep this — closes .wrap -->
+
+
+  <script>
+
+
+/* Fixed EST year-round (UTC-5). */
+const TZ = "America/New_York";
+
+/* =========================
+DATUM SYSTEM (MLLW-based offsets)
+- We convert everything through MLLW using offsets from  table.
+datum_ft = mllw_ft + OFFSET_FROM_MLLW[datum]
+========================= */
+
+let DISPLAY_DATUM = "MLLW"; // MLLW | NAVD88 | MSL | MHHW
+
+const DATUMS = ["MLLW", "NAVD88", "MSL", "MHHW"]; // cycle order
+
+// From  table (Gauge Zero row): datum = MLLW + offset
+const OFFSET_FROM_MLLW = {
+  MLLW:   0.00,
+  NAVD88: -2.10,
+  MSL:    -1.87,
+  MHHW:   -3.88
+};
+
+function mllwToDatum(ft, datum){
+  return ft + (OFFSET_FROM_MLLW[datum] ?? 0);
+}
+function datumToMllw(ft, datum){
+  return ft - (OFFSET_FROM_MLLW[datum] ?? 0);
+}
+function datumToDatum(ft, fromDatum, toDatum){
+  const mllw = datumToMllw(ft, fromDatum);
+  return mllwToDatum(mllw, toDatum);
+}
+    // Convenience helpers (you reference these later)
+function mllwToNavd(mllwFt){
+  return datumToDatum(mllwFt, "MLLW", "NAVD88");
+}
+function navdToMllw(navdFt){
+  return datumToDatum(navdFt, "NAVD88", "MLLW");
+}
+
+
+// Helpers used across the app ( internal truth stays NAVD88 where needed)
+function toDisplayFtFromNavd(navdFt){
+  return datumToDatum(navdFt, "NAVD88", DISPLAY_DATUM);
+}
+function toDisplayFtFromMllw(mllwFt){
+  return datumToDatum(mllwFt, "MLLW", DISPLAY_DATUM);
+}
+function fromDisplayToNavd(displayFt){
+  return datumToDatum(displayFt, DISPLAY_DATUM, "NAVD88");
+}
+
+
+/* USGS observed (15-min IV). */
+const USGS_SITE="01407600";
+
+/* Water level ONLY (tide elevation NAVD88). */
+const USGS_PARAM_PRIMARY = "72279";
+
+/* NOAA CO-OPS predictions */
+const COOPS_STATION="8531804";
+const COOPS_APP="cupajoe.live";
+const COOPS_DATUM="MLLW";
+const COOPS_INTERVAL="6";
+const COOPS_TZ="gmt";
+
+      /* Tide-clock settings for crest-anchored highs (NOAA hilo predictions) */
+const NOAA_STATION_TIDECLOCK = "8531804"; // same station as COOPS_STATION (Sea Bright)
+const CREST_WINDOW_HOURS = 2;             // search max within ±2 hours of predicted crest
+const REQUIRE_WITHIN_HOURS = 1;           // must have at least one obs point within ±1 hour
+
+
+/* Flood thresholds (from  table) */
+const THRESH = {
+  MLLW:  { minorLow:5.20, moderateLow:6.20, majorLow:7.20 },
+  NAVD88:{ minorLow:3.10, moderateLow:4.10, majorLow:5.10 },
+  MSL:   { minorLow:3.33, moderateLow:4.33, majorLow:5.33 },
+  MHHW:  { minorLow:1.32, moderateLow:2.32, majorLow:3.32 }
+};
+
+      const HOUR_MS = 60 * 60 * 1000;
+
+function floorToHourMs(tMs){
+  return Math.floor(tMs / HOUR_MS) * HOUR_MS;
+}
+
+function buildHourlyLabels(startISO, endISO){
+  const start = floorToHourMs(new Date(startISO).getTime());
+  const end   = floorToHourMs(new Date(endISO).getTime());
+  const labels = [];
+  for(let t = start; t <= end; t += HOUR_MS){
+    labels.push(new Date(t).toISOString());
+  }
+  return labels;
+}
+
+// Pick the LAST value observed within each hour (looks best for water level)
+function seriesToHourlyLast(series){
+  const m = new Map(); // hourMs -> ft
+  for(const p of (series || [])){
+    const tMs = new Date(p.t).getTime();
+    const ft  = Number(p.ft);
+    if(!Number.isFinite(tMs) || !Number.isFinite(ft)) continue;
+    m.set(floorToHourMs(tMs), ft); // later points overwrite earlier => "last in hour"
+  }
+  return m;
+}
+
+// Snap a series to the hourly labels (no interpolation, just exact hour hits)
+function mapToHourlyValues(labels, hourMap){
+  return labels.map(iso=>{
+    const h = floorToHourMs(new Date(iso).getTime());
+    return hourMap.has(h) ? hourMap.get(h) : null;
+  });
+}
+
+
+/* Peak counting settings */
+const PEAK_MIN_SEP_MINUTES = 300;
+
+      /* Historic filter: switch to live after this date */
+const LIVE_START_ISO = "2026-01-01T00:00:00Z"; // use >= Jan 1 2026
+
+
+
+/* NWS alerts point */
+const ALERT_POINT={lat:39.2325, lon:-75.0380};
+
+
+/* Top ten list (MLLW) — FIXED (shifted +2.10 ft from NAVD) */
+const TOP_TEN_MLLW = [
+  {date:"10-29-2012", ft:11.73},
+  {date:"12-11-1992", ft:9.43},
+  {date:"08-28-2011", ft:8.42},
+  {date:"03-06-1962", ft:7.73},
+  {date:"03-13-2010", ft:7.45},
+  {date:"01-13-2024", ft:7.35},
+  {date:"10-27-2018", ft:7.30},
+  {date:"12-23-2022", ft:7.29},
+  {date:"02-02-2021", ft:7.26},
+  {date:"01-24-2017", ft:7.18}
+];
+
+    /* =========================
+MAP — Leaflet gauge map
+========================= */
+const DEFAULT_GAUGE_ID = "01407600"; // Sea Bright USGS
+const DEFAULT_GAUGE_ZOOM = 12;       // adjust if you want closer (13 = tighter)
+// Edit these whenever you want (lat/lon + label + link)
+const GAUGES = [
+  // --- USGS NJ coastal/estuary network ---
+  { name:"Bivalve (Maurice River at Bivalve)", agency:"USGS", id:"01412150", lat:39.232500, lon:-75.032778 },
+  { name:"South Dennis (Sluice Creek near South Dennis)", agency:"USGS", id:"01411435", lat:39.161667, lon:-74.832222 },
+  { name:"Cape May Harbor (Cape May Harbor at Cape May)", agency:"USGS", id:"01411390", lat:38.948333, lon:-74.888889 },
+  { name:"Stone Harbor (Great Channel at Stone Harbor)", agency:"USGS", id:"01411360", lat:39.056944, lon:-74.765000 },
+  { name:"Avalon (Ingram Thorofare at Avalon)", agency:"USGS", id:"01411355", lat:39.108611, lon:-74.741944 },
+  { name:"Sea Isle (Ludlum Thorofare at Sea Isle City)", agency:"USGS", id:"01411350", lat:39.157778, lon:-74.697778 },
+  { name:"Ocean City (Great Egg Harbor Bay at Ocean City)", agency:"USGS", id:"01411320", lat:39.285833, lon:-74.575556 },
+  { name:"Margate (Beach Thorofare at Margate)", agency:"USGS", id:"01411330", lat:39.337500, lon:-74.513056 },
+  { name:"Atlantic City (Inside Thorofare at US Rt 40)", agency:"USGS", id:"01410560", lat:39.353611, lon:-74.456944 },
+  { name:"USGS Atlantic City (Absecon Channel)", agency:"USGS", id:"01410500", lat:39.3564, lon:-74.4186 },
+
+  { name:"Little Egg Inlet (near Tuckerton)", agency:"USGS", id:"01409335", lat:39.508889, lon:-74.324722 },
+  { name:"Ship Bottom (East Thorofare at Ship Bottom)", agency:"USGS", id:"01409146", lat:39.654167, lon:-74.185833 },
+  { name:"Barnegat Light (Barnegat Bay at Barnegat Light)", agency:"USGS", id:"01409125", lat:39.760833, lon:-74.110556 },
+  { name:"Mantoloking (Barnegat Bay at Mantoloking)", agency:"USGS", id:"01408168", lat:40.040556, lon:-74.054444 },
+  { name:"Manasquan (Watson Creek at Manasquan)", agency:"USGS", id:"01408048", lat:40.111667, lon:-74.044722 },
+  { name:"Belmar (Shark River at Belmar)", agency:"USGS", id:"01407770", lat:40.179167, lon:-74.038333 },
+  { name:"Sea Bright (Shrewsbury River at Sea Bright)", agency:"USGS", id:"01407600", lat:40.365556, lon:-73.974722 },
+  { name:"Keansburg (Raritan Bay at Keansburg)", agency:"USGS", id:"01407081", lat:40.449167, lon:-74.147500 },
+
+  // --- NOAA tide gauges ---
+  { name:"NOAA Cape May", agency:"NOAA", id:"8536110", lat:38.968000, lon:-74.960000 },
+  { name:"NOAA Atlantic City", agency:"NOAA", id:"8534720", lat:39.357000, lon:-74.418000 },
+  { name:"NOAA Sandy Hook", agency:"NOAA", id:"8531680", lat:40.466818, lon:-74.009391 }
+];
+
+
+
+let _gaugeMap = null;
+let _gaugeLayer = null;
+
+function ensureGaugeMap(){
+  const el = document.getElementById("gaugeMap");
+  if(!el) return;
+
+  // Leaflet not loaded yet? Bail quietly.
+  if(typeof window.L === "undefined"){
+    console.warn("Leaflet not loaded (window.L missing).");
+    return;
+  }
+
+  // Already built
+  if(_gaugeMap){
+    // In case accordion opened later, force resize.
+    setTimeout(()=>_gaugeMap.invalidateSize(true), 50);
+    return;
+  }
+
+  _gaugeMap = L.map(el, {
+    scrollWheelZoom: false,
+    zoomControl: true
+  });
+
+  // Base tiles
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(_gaugeMap);
+
+  // Markers
+  _gaugeLayer = L.layerGroup().addTo(_gaugeMap);
+
+  const bounds = [];
+
+  for(const g of GAUGES){
+    const color =
+      (g.agency || "").toUpperCase() === "NOAA" ? "#60a5fa" : "#2dd4bf";
+
+    const m = L.circleMarker([g.lat, g.lon], {
+      radius: 8,
+      weight: 2,
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.85
+    });
+
+    const popup = `
+      <div style="font-weight:900;margin-bottom:6px;">${g.name}</div>
+      <div style="opacity:.85;margin-bottom:8px;">${g.agency} · ${g.id || ""}</div>
+      ${g.url ? `<a href="${g.url}" target="_blank" rel="noopener" style="text-decoration:underline;">Open station</a>` : ""}
+    `;
+
+    m.bindPopup(popup);
+    m.addTo(_gaugeLayer);
+
+    bounds.push([g.lat, g.lon]);
+  }
+
+// Default view = Sea Bright gauge
+const def = GAUGES.find(g => String(g.id) === DEFAULT_GAUGE_ID);
+
+if(def){
+  _gaugeMap.setView([def.lat, def.lon], DEFAULT_GAUGE_ZOOM);
+} else if(bounds.length){
+  _gaugeMap.fitBounds(bounds, { padding:[30,30] });
+} else {
+  _gaugeMap.setView([40.2,-74.0], 9);
+}
+
+  // Fix initial render sizing issues (accordion hidden → shown)
+  setTimeout(()=>_gaugeMap.invalidateSize(true), 100);
+}
+
+function hookGaugeMapAccordion(){
+  const acc = document.getElementById("mapAcc");
+  if(!acc) return;
+
+  acc.addEventListener("toggle", ()=>{
+    if(acc.open){
+      setTimeout(()=>{
+        ensureGaugeMap();
+        if(_gaugeMap) _gaugeMap.invalidateSize(true);
+      }, 50);
+    }
+  });
+}
+
+/* DOM */
+const $=id=>document.getElementById(id);
+
+const curFtEl=$("curFt"), curMetaEl=$("curMeta");
+const dayMaxFtEl = $("dayMaxFt"),
+      dayMinFtEl = $("dayMinFt"),
+      dayMaxWhenEl = $("dayMaxWhen"),
+      dayMinWhenEl = $("dayMinWhen"),
+      dayRangeMeta = $("dayRangeMeta");
+  
+    const dailyRangeDateEl = $("dailyRangeDate");
+
+
+const stageTextEl=$("stageText"), stageDotEl=$("stageDot");
+const lastPill=$("lastPill");
+const alertBanner=$("alertBanner"), alertTitle=$("alertTitle"), alertBody=$("alertBody");
+
+const topTenBody=$("topTenBody");
+const topTenUnitTh=$("topTenUnitTh");
+const fcNote=$("fcNote");
+const txtNote=$("txtNote");
+
+    const thMinorTxt = $("thMinorTxt");
+const thModerTxt = $("thModerTxt");
+const thMajorTxt = $("thMajorTxt");
+
+
+const histBody = $("histBody"),
+      histMeta = $("histMeta"),
+      histUnitTh = $("histUnitTh");
+
+const minElevEl  = $("minElev"),
+      maxElevEl  = $("maxElev"),
+      fromDateEl = $("fromDate"),
+      toDateEl   = $("toDate"),
+      sortModeEl = $("sortMode");
+
+const minorBadge = $("minorBadge"),
+      moderateBadge = $("moderateBadge"),
+      majorBadge = $("majorBadge");
+
+
+      // Flood outlook (next 48h) DOM
+const f48MinorHrsEl = $("f48MinorHrs");
+const f48ModerHrsEl = $("f48ModerHrs");
+const f48MajorHrsEl = $("f48MajorHrs");
+const f48ListEl     = $("f48List");
+const f48MetaEl     = $("f48Meta");
+
+ const datumSelect = $("datumSelect");
+// =========================
+// Datum help popover ("?")
+// =========================
+const datumHelpBtn = $("datumHelpBtn");
+const datumHelpPop = $("datumHelpPop");
+
+function closeDatumHelp(){
+  if(!datumHelpBtn || !datumHelpPop) return;
+  datumHelpPop.classList.remove("isOpen");
+  datumHelpPop.setAttribute("aria-hidden","true");
+  datumHelpBtn.setAttribute("aria-expanded","false");
+}
+
+function toggleDatumHelp(){
+  if(!datumHelpBtn || !datumHelpPop) return;
+
+  const open = datumHelpPop.classList.contains("isOpen");
+  if(open){
+    closeDatumHelp();
+  }else{
+    datumHelpPop.classList.add("isOpen");
+    datumHelpPop.setAttribute("aria-hidden","false");
+    datumHelpBtn.setAttribute("aria-expanded","true");
+  }
+}
+
+if(datumHelpBtn && datumHelpPop){
+  datumHelpBtn.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    toggleDatumHelp();
+  });
+
+  // click outside closes it
+  document.addEventListener("click", (e)=>{
+    const t = e.target;
+    if(datumHelpPop.classList.contains("isOpen")){
+      if(!datumHelpPop.contains(t) && t !== datumHelpBtn){
+        closeDatumHelp();
+      }
+    }
+  });
+
+  // Esc closes it
+  document.addEventListener("keydown", (e)=>{
+    if(e.key === "Escape") closeDatumHelp();
+  });
+}
+
+
+
+const monthAvgMeta=$("monthAvgMeta"), monthAvgBody=$("monthAvgBody");
+
+    /* =========================
+   VIEW SWITCHES (Monthly + Annual)
+   ========================= */
+let MONTH_VIEW = "total";  // "total" | "minor" | "moderate" | "major"
+let ANNUAL_VIEW = "total"; // "total" | "minor" | "moderate" | "major"
+
+
+function setSegActive(segEl, val){
+  if(!segEl) return;
+  segEl.querySelectorAll(".segBtn").forEach(b=>{
+    b.classList.toggle("isActive", b.dataset.val === val);
+  });
+}
+
+function applyMonthView(){
+  // 1) Table column visibility (via class)
+  const tbl = document.getElementById("monthAvgTable");
+  if(tbl){
+    tbl.classList.remove("show-minor","show-moderate","show-major","show-total");
+    tbl.classList.add(`show-${MONTH_VIEW}`);
+  }
+
+  // 2) Chart dataset visibility
+ if(monthAvgChart){
+  // datasets: 0 minor, 1 moderate, 2 major
+  const showAll = (MONTH_VIEW === "total");
+
+  monthAvgChart.data.datasets[0].hidden = !showAll && (MONTH_VIEW !== "minor");
+  monthAvgChart.data.datasets[1].hidden = !showAll && (MONTH_VIEW !== "moderate");
+  monthAvgChart.data.datasets[2].hidden = !showAll && (MONTH_VIEW !== "major");
+
+  monthAvgChart.update();
+}
+}
+
+
+
+function applyAnnualView(){
+  if(!annualChart) return;
+
+  const showAll = (ANNUAL_VIEW === "total");
+
+  // datasets: 0 minor, 1 moderate, 2 major
+  annualChart.data.datasets[0].hidden = !showAll && (ANNUAL_VIEW !== "minor");
+  annualChart.data.datasets[1].hidden = !showAll && (ANNUAL_VIEW !== "moderate");
+  annualChart.data.datasets[2].hidden = !showAll && (ANNUAL_VIEW !== "major");
+
+  //   dataset 3 = quadratic trendline (Total)
+  // Show it ONLY when Total is selected
+  if(annualChart.data.datasets[3]){
+    annualChart.data.datasets[3].hidden = (ANNUAL_VIEW !== "total");
+  }
+
+  annualChart.update();
+}
+
+function hookMonthViewSwitch(){
+  const seg = document.getElementById("monthViewSeg");
+  if(!seg) return;
+
+  seg.addEventListener("click", (e)=>{
+    const btn = e.target.closest(".segBtn");
+    if(!btn) return;
+
+    MONTH_VIEW = btn.dataset.val;
+    setSegActive(seg, MONTH_VIEW);
+    applyMonthView();
+  });
+
+  // initial
+  setSegActive(seg, MONTH_VIEW);
+}
+
+function hookAnnualViewSwitch(){
+  const seg = document.getElementById("annualViewSeg");
+  if(!seg) return;
+
+  seg.addEventListener("click", (e)=>{
+    const btn = e.target.closest(".segBtn");
+    if(!btn) return;
+
+    ANNUAL_VIEW = btn.dataset.val;
+    setSegActive(seg, ANNUAL_VIEW);
+    applyAnnualView();
+  });
+
+  // initial
+  setSegActive(seg, ANNUAL_VIEW);
+}
+
+
+/* If ANY JS error happens, show it in the UI so you’re not blind */
+window.addEventListener("error",(e)=>{
+  console.error("JS error:", e?.message || e);
+  stageTextEl.textContent="SCRIPT ERROR (open Console)";
+});
+window.addEventListener("unhandledrejection",(e)=>{
+  console.error("Unhandled promise:", e?.reason || e);
+  stageTextEl.textContent="SCRIPT ERROR (open Console)";
+});
+
+/* Formatters */
+const fmtFull = new Intl.DateTimeFormat("en-US",{ timeZone:TZ,year:"numeric",month:"short",day:"2-digit", hour:"2-digit",minute:"2-digit",hour12:true });
+const fmtDay = new Intl.DateTimeFormat("en-US",{timeZone:TZ,month:"short",day:"2-digit"});
+const fmtPartsYMD = new Intl.DateTimeFormat("en-US",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"});
+const fmtMonthName = new Intl.DateTimeFormat("en-US",{timeZone:TZ,month:"short"});
+
+      const fmtTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true
+});
+function fmtESTTime(iso){ return fmtTime.format(new Date(iso)); }
+
+function fmtESTFull(iso){ return fmtFull.format(new Date(iso)); }
+function fmtESTDay(iso){ return fmtDay.format(new Date(iso)); }
+function fmtNiceDate(iso){
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  }).formatToParts(d);
+
+  const month = parts.find(p=>p.type==="month")?.value || "";
+  const dayN  = + (parts.find(p=>p.type==="day")?.value || "0");
+  const year  = parts.find(p=>p.type==="year")?.value || "";
+
+  const suffix =
+    (dayN % 100 >= 11 && dayN % 100 <= 13) ? "th" :
+    (dayN % 10 === 1) ? "st" :
+    (dayN % 10 === 2) ? "nd" :
+    (dayN % 10 === 3) ? "rd" : "th";
+
+  return `${month} ${dayN}${suffix} ${year}`;
+}
+
+function getESTParts(date=new Date()){
+  const p=fmtPartsYMD.formatToParts(date);
+  return { y:+p.find(x=>x.type==="year").value, m:+p.find(x=>x.type==="month").value, d:+p.find(x=>x.type==="day").value };
+}
+
+function startOfTodayLocalTZ_ISO(){
+  const { y, m, d } = getESTParts(new Date()); // still ok; uses TZ inside fmtPartsYMD
+  // Create a Date that represents midnight in TZ, without hard-coding UTC offset
+  // Trick: format a TZ-midnight as parts, then find its UTC timestamp by searching.
+  const target = { y, m, d, hh: 0, mm: 0 };
+
+  // brute-force find the UTC time whose TZ parts match target (fast: only checks within 30 hours)
+  const now = Date.now();
+  const base = new Date(Date.UTC(y, m-1, d, 0, 0, 0)).getTime(); // around the right day
+  for (let t = base - 12*3600*1000; t <= base + 18*3600*1000; t += 5*60*1000){
+    const p = getESTParts(new Date(t));
+    const time = fmtTime.formatToParts(new Date(t));
+    const hh = +time.find(x=>x.type==="hour").value % 24;
+    const mm = +time.find(x=>x.type==="minute").value;
+    if (p.y===target.y && p.m===target.m && p.d===target.d && hh===0 && mm===0){
+      return new Date(t).toISOString();
+    }
+  }
+  // fallback (shouldn't happen)
+  return new Date(base).toISOString();
+}
+function startOfYearEST_ISO(y){ return new Date(Date.UTC(y,0,1,5,0,0)).toISOString(); }
+function nowISO(){ return new Date().toISOString(); }
+
+
+/* Stage classify uses NAVD thresholds */
+function classifyByNavd(navdFt){
+  const T = THRESH.NAVD88;
+  if(navdFt>=T.majorLow) return {label:"MAJOR FLOODING", color:"var(--major)", glow:"rgba(167,139,250,.22)", short:"Major"};
+  if(navdFt>=T.moderateLow) return {label:"MODERATE FLOODING", color:"var(--moderate)", glow:"rgba(251,113,133,.22)", short:"Moderate"};
+  if(navdFt>=T.minorLow) return {label:"MINOR FLOODING", color:"var(--minor)", glow:"rgba(251,191,36,.22)", short:"Minor"};
+  return {label:"NO FLOODING", color:"var(--ok)", glow:"rgba(45,212,191,.18)", short:"Below"};
+}
+function stageTagByNavd(navdFt){
+  const c=classifyByNavd(navdFt);
+  return {txt:c.short, c:c.color};
+}
+function setStage(navdFt){
+  const c=classifyByNavd(navdFt);
+  stageTextEl.textContent=c.label;
+  stageDotEl.style.background=c.color;
+  stageDotEl.style.boxShadow = `0 0 0 4px ${c.glow}`;
+}
+
+    function datumLabel(){
+  return DISPLAY_DATUM;
+}
+
+function unitText(){
+  return `ft ${DISPLAY_DATUM}`;
+}
+
+
+function updateUnitsAndBadges(){
+  // Update all the little "ft DATUM" unit labels around the page
+  document.querySelectorAll("[data-unit]").forEach(el=>{
+    el.textContent = "ft " + datumLabel();
+  });
+
+  // Update table headers
+  topTenUnitTh.textContent = "Height (" + unitText() + ")";
+  histUnitTh.textContent   = "Peak (" + unitText() + ")";
+
+  // Update the stage badges under Live conditions (Minor/Moderate/Major boxes)
+  const T = THRESH[DISPLAY_DATUM];
+minorBadge.textContent    = `${T.minorLow.toFixed(2)}–${T.moderateLow.toFixed(2)} ft`;
+moderateBadge.textContent = `${T.moderateLow.toFixed(2)}–${T.majorLow.toFixed(2)} ft`;
+majorBadge.textContent    = `≥ ${T.majorLow.toFixed(2)} ft`;
+
+
+  //   NEW: Update the numbers next to Minor/Moderate/Major in Observations & Predictions
+  if(thMinorTxt) thMinorTxt.textContent = `${T.minorLow.toFixed(2)} ${unitText()}`;
+  if(thModerTxt) thModerTxt.textContent = `${T.moderateLow.toFixed(2)} ${unitText()}`;
+  if(thMajorTxt) thMajorTxt.textContent = `${T.majorLow.toFixed(2)} ${unitText()}`;
+}
+
+
+/* Simple helpers */
+function maxPoint(arr){ return arr.reduce((a,b)=>b.ft>a.ft?b:a, arr[0]); }
+function minPoint(arr){ return arr.reduce((a,b)=>b.ft<a.ft?b:a, arr[0]); }
+function setTXTStatus(msg){ if(txtNote) txtNote.textContent = msg || ""; }
+      function thresholdsDisplay(){
+  const T = THRESH[DISPLAY_DATUM];
+  return { minor:T.minorLow, moderate:T.moderateLow, major:T.majorLow };
+}
+
+      function stageNameFromDisplayFt(ft){
+  const T = THRESH[DISPLAY_DATUM];
+  if(ft >= T.majorLow) return "Major";
+  if(ft >= T.moderateLow) return "Moderate";
+  if(ft >= T.minorLow) return "Minor";
+  return "Below";
+}
+
+function stageColorVar(stage){
+  if(stage==="Major") return "var(--major)";
+  if(stage==="Moderate") return "var(--moderate)";
+  if(stage==="Minor") return "var(--minor)";
+  return "var(--muted)";
+}
+
+// Build segments of consecutive points where stage >= Minor
+function buildFloodSegments(points){
+  const segs = [];
+  let cur = null;
+
+  for(const p of points){
+    const stage = stageNameFromDisplayFt(p.ftDisplay);
+
+    if(stage === "Below"){
+      if(cur){ segs.push(cur); cur = null; }
+      continue;
+    }
+
+    if(!cur){
+      cur = { startT:p.t, endT:p.t, peakFt:p.ftDisplay, peakStage:stage, startMs:p.ms, endMs:p.ms };
+    }else{
+      cur.endT = p.t;
+      cur.endMs = p.ms;
+      if(p.ftDisplay > cur.peakFt){
+        cur.peakFt = p.ftDisplay;
+        cur.peakStage = stage;
+      }
+    }
+  }
+  if(cur) segs.push(cur);
+  return segs;
+}
+
+function updateFloodOutlook48(){
+  if(!f48MinorHrsEl || !f48ModerHrsEl || !f48MajorHrsEl || !f48ListEl || !f48MetaEl) return;
+
+  const pred = STATE.pred72Mllw || [];
+  if(!pred.length){
+    f48MinorHrsEl.textContent = "—";
+    f48ModerHrsEl.textContent = "—";
+    f48MajorHrsEl.textContent = "—";
+    f48ListEl.innerHTML = `
+      <div class="event">
+        <div class="eventLeft">
+          <div class="eventWhen">NOAA/PETSS unavailable</div>
+          <div class="eventSub">No forecast points loaded</div>
+        </div>
+        <div class="eventBadge" style="color:var(--muted)">—</div>
+      </div>`;
+    f48MetaEl.textContent = "";
+    return;
+  }
+
+// Next 72h window anchored to NOW (not forecast file start)
+const nowMs = Date.now();
+const t0 = nowMs;
+const t1 = nowMs + 72 * 3600 * 1000;
+
+
+  // Convert to DISPLAY datum and keep only 48h
+  const pts = pred
+    .map(p=>{
+      const ms = new Date(p.t).getTime();
+      const mllw = Number(p.ft);
+      if(!Number.isFinite(ms) || !Number.isFinite(mllw)) return null;
+      if(ms < t0 || ms > t1) return null;
+      const ftDisplay = toDisplayFtFromMllw(mllw);
+      return { t: p.t, ms, ftDisplay };
+    })
+    .filter(Boolean)
+    .sort((a,b)=>a.ms-b.ms);
+
+  if(!pts.length){
+    f48MinorHrsEl.textContent = "0.0";
+    f48ModerHrsEl.textContent = "0.0";
+    f48MajorHrsEl.textContent = "0.0";
+    f48ListEl.innerHTML = `
+      <div class="event">
+        <div class="eventLeft">
+          <div class="eventWhen">No flood periods forecast</div>
+          <div class="eventSub">Next 72 hours stay flooding free</div>
+        </div>
+        <div class="eventBadge" style="color:var(--ok)">Below</div>
+      </div>`;
+    f48MetaEl.textContent = `${fmtNiceDate(pred[0].t)} → ${fmtNiceDate(new Date(t1).toISOString())}`;
+    return;
+  }
+
+  // Count duration in each stage using dt between points
+  let minorMs=0, moderMs=0, majorMs=0;
+
+  for(let i=0;i<pts.length;i++){
+    const a = pts[i];
+    const b = pts[i+1] || null;
+    const dt = b ? Math.max(0, b.ms - a.ms) : 15*60*1000; // assume 15m for last step
+    const stage = stageNameFromDisplayFt(a.ftDisplay);
+
+    if(stage==="Major") majorMs += dt;
+    else if(stage==="Moderate") moderMs += dt;
+    else if(stage==="Minor") minorMs += dt;
+  }
+
+  const msToHours = ms => (ms / 3600000);
+  f48MinorHrsEl.textContent = msToHours(minorMs).toFixed(1);
+  f48ModerHrsEl.textContent = msToHours(moderMs).toFixed(1);
+  f48MajorHrsEl.textContent = msToHours(majorMs).toFixed(1);
+
+  // Build flood segments list
+  const segs = buildFloodSegments(pts);
+
+  if(!segs.length){
+    f48ListEl.innerHTML = `
+      <div class="event">
+        <div class="eventLeft">
+          <div class="eventWhen">No flood periods forecast</div>
+          <div class="eventSub">Next 72 hours stay flooding free</div>
+        </div>
+        <div class="eventBadge" style="color:var(--ok)">Below</div>
+      </div>`;
+  }else{
+    const show = segs.slice(0,4);
+    f48ListEl.innerHTML = show.map(seg=>{
+      const durH = Math.max(0.25, (seg.endMs - seg.startMs) / 3600000);
+      const when = `${fmtNiceDate(seg.startT)} · ${fmtESTTime(seg.startT)} → ${fmtESTTime(seg.endT)}`;
+      const sub  = `${durH.toFixed(1)}h · Peak ${seg.peakFt.toFixed(2)} ${unitText()}`;
+      const badgeColor = stageColorVar(seg.peakStage);
+
+      return `
+        <div class="event">
+          <div class="eventLeft">
+            <div class="eventWhen">${when}</div>
+            <div class="eventSub">${sub}</div>
+          </div>
+          <div class="eventBadge" style="color:${badgeColor}">${seg.peakStage}</div>
+        </div>`;
+    }).join("");
+  }
+
+f48MetaEl.textContent =
+  `${fmtNiceDate(new Date(t0).toISOString())} → ${fmtNiceDate(new Date(t1).toISOString())} · Based on NOAA/PETSS`;
+}
+
+function updatePred24RangeCard(){
+  const maxEl = document.getElementById("pred24MaxFt");
+  const minEl = document.getElementById("pred24MinFt");
+  const metaEl = document.getElementById("pred24Meta");
+  if(!maxEl || !minEl || !metaEl) return;
+
+  const pred = STATE.pred72Mllw || [];
+  if(!pred.length){
+    maxEl.textContent = "—";
+    minEl.textContent = "—";
+    metaEl.textContent = "NOAA predictions unavailable";
+    return;
+  }
+
+  const t0 = new Date(pred[0].t).getTime();
+  const t1 = t0 + 24*3600*1000;
+
+  const window = pred
+    .map(p => ({ t:new Date(p.t).getTime(), ft:p.ft }))
+    .filter(p => Number.isFinite(p.t) && Number.isFinite(p.ft) && p.t >= t0 && p.t <= t1);
+
+  if(!window.length){
+    maxEl.textContent = "—";
+    minEl.textContent = "—";
+    metaEl.textContent = "NOAA predictions empty (24h)";
+    return;
+  }
+
+  let max = -Infinity, min = Infinity;
+  for(const p of window){
+    if(p.ft > max) max = p.ft;
+    if(p.ft < min) min = p.ft;
+  }
+
+  maxEl.textContent = toDisplayFtFromMllw(max).toFixed(2);
+  minEl.textContent = toDisplayFtFromMllw(min).toFixed(2);
+
+  metaEl.textContent =
+    ``;
+}
+
+
+/* Top ten renderer (MLLW list; converts for display + classification) */
+function renderTopTen(){
+  topTenBody.innerHTML="";
+  TOP_TEN_MLLW.forEach((r,i)=>{
+    const navd = mllwToNavd(r.ft);
+    const tag = stageTagByNavd(navd);
+    const disp = toDisplayFtFromMllw(r.ft);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td><b>#${i+1}</b></td>
+      <td>${r.date}</td>
+      <td><b>${disp.toFixed(2)}</b></td>
+      <td><span class="tag"><span class="chip" style="background:${tag.c}"></span>${tag.txt}</span></td>
+    `;
+    topTenBody.appendChild(tr);
+  });
+}
+
+/* Helpers for predictions alignment (used later) */
+function ceilToNext15MinISO(iso){
+  const d = new Date(iso);
+  if(Number.isNaN(d.getTime())) return iso;
+  const t = d.getTime();
+  const step = 15*60*1000;
+  const next = Math.ceil((t+1)/step)*step;
+  return new Date(next).toISOString();
+}
+
+
+
+
+// --- PETSS: try multiple possible output filenames (works on Pages + local) ---
+const PETSS_JSON_CANDIDATES = [
+  "data/petss_forecast.json",
+  "./data/petss_forecast.json",
+  "/data/petss_forecast.json",
+
+  // common variants if you name files per-station:
+  `data/petss_forecast_${COOPS_STATION}_mllw.json`,
+  `./data/petss_forecast_${COOPS_STATION}_mllw.json`,
+  `/data/petss_forecast_${COOPS_STATION}_mllw.json`,
+
+  // keep  old guess as a last resort
+  "data/petss_forecast_8536889_mllw.json"
+];
+
+// returns parsed points in the format  chart expects: [{t, ft}]
+function normalizePetssJsonToPoints(json){
+  // Option A: { points: [{t, fcst, ...}, ...] }
+  if(Array.isArray(json?.points)){
+    return json.points
+      .map(p => ({ t: p.t, ft: Number(p.fcst ?? p.twl ?? p.value) }))
+      .filter(p => p.t && Number.isFinite(p.ft))
+      .sort((a,b)=> new Date(a.t) - new Date(b.t));
+  }
+
+  // Option B: [{t, fcst}, ...]
+  if(Array.isArray(json)){
+    return json
+      .map(p => ({ t: p.t ?? p.time ?? p.validTime, ft: Number(p.fcst ?? p.twl ?? p.value ?? p.primary) }))
+      .filter(p => p.t && Number.isFinite(p.ft))
+      .sort((a,b)=> new Date(a.t) - new Date(b.t));
+  }
+
+  // Option C: { data: [...] }
+  if(Array.isArray(json?.data)){
+    return json.data
+      .map(p => ({ t: p.t ?? p.time ?? p.validTime, ft: Number(p.fcst ?? p.twl ?? p.value ?? p.primary) }))
+      .filter(p => p.t && Number.isFinite(p.ft))
+      .sort((a,b)=> new Date(a.t) - new Date(b.t));
+  }
+
+  return [];
+}
+
+async function fetchFirstOkJson(urls){
+  const errs = [];
+  for(const u of urls){
+    try{
+      const res = await fetch(`${u}?v=${Date.now()}`, { cache:"no-store" });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      return { url: u, json: j };
+    }catch(e){
+      errs.push(`${u} (${e?.message || e})`);
+    }
+  }
+  throw new Error("PETSS JSON not found. Tried: " + errs.join(" | "));
+}
+
+async function fetchPETSSForecast_MLLW({ hours = 48 } = {}){
+  const { url, json } = await fetchFirstOkJson(PETSS_JSON_CANDIDATES);
+
+  const issuedTime =
+    json?.model_time_utc ||
+    json?.issued_utc ||
+    json?.fetched_utc ||
+    json?.issuedTime ||
+    null;
+
+  const ptsAll = normalizePetssJsonToPoints(json);
+
+  // IMPORTANT:
+  // Do NOT clip to "first timestamp + hours".
+  // The chart itself already slices/resamples to the correct window (now → now+72h).
+  return { issuedTime, points: ptsAll, urlUsed: url };
+}
+
+
+/* =========================
+USGS IV fetch — STRICTLY tidal elevation 72279 (not discharge)
+========================= */
+async function fetchIV({startISO=null,endISO=null,period=null}={}){
+  const url=new URL("https://waterservices.usgs.gov/nwis/iv/");
+  url.searchParams.set("format","json");
+  url.searchParams.set("sites",USGS_SITE);
+  url.searchParams.set("parameterCd",USGS_PARAM_PRIMARY);
+  url.searchParams.set("siteStatus","all");
+  url.searchParams.set("agencyCd","USGS");
+  if(period) url.searchParams.set("period",period);
+  if(startISO) url.searchParams.set("startDT",startISO);
+  if(endISO) url.searchParams.set("endDT",endISO);
+
+  const res=await fetch(url.toString(),{cache:"no-store"});
+  if(!res.ok) throw new Error("USGS IV failed "+res.status);
+  return res.json();
+}
+
+function extractWaterLevelSeries_NAVD88(json){
+  const tss = json?.value?.timeSeries || [];
+  const candidates = tss.filter(ts => {
+    const code = ts?.variable?.variableCode?.[0]?.value || null;
+    if(code !== USGS_PARAM_PRIMARY) return false;
+    const unit = (ts?.variable?.unit?.unitCode || "").toLowerCase();
+    return (unit === "" || unit.includes("ft"));
+  });
+
+  if(!candidates.length){
+    const have = tss.map(ts=>ts?.variable?.variableCode?.[0]?.value).filter(Boolean);
+    throw new Error(`USGS returned no tidal elevation series for ${USGS_PARAM_PRIMARY}. Returned: ${[...new Set(have)].join(", ")}`);
+  }
+
+  let best=[];
+  for(const ts of candidates){
+    const vals = ts?.values?.[0]?.value || [];
+    const pts = vals
+      .map(v=>({t:v.dateTime, ft:Number(v.value)}))
+      .filter(p=>p.t && Number.isFinite(p.ft));
+    if(pts.length > best.length) best = pts;
+  }
+  return best;
+}
+
+async function fetchObservedSeries({startISO=null,endISO=null,period=null}={}){
+  const j = await fetchIV({startISO,endISO,period});
+  return extractWaterLevelSeries_NAVD88(j);
+}
+
+/* =========================
+NOAA/NWS NWPS official forecast (SBIN4) -> we resample to 15-min later
+Replaces CO-OPS predictions block.
+Returns MLLW ft as [{t: ISO8601, ft: Number}] plus issuedTime for UI.
+========================= */
+const NWPS_GAUGE = "SBIN4";
+const NWPS_STAGEFLOW_URL = `https://api.water.noaa.gov/nwps/v1/gauges/${NWPS_GAUGE}/stageflow`;
+
+/* Clip to N hours from the first point (keeps  existing 72h logic consistent). */
+function clipHoursFromFirst(points, hours){
+  if(!hours || !points?.length) return points || [];
+  const t0 = new Date(points[0].t).getTime();
+  if(!Number.isFinite(t0)) return points || [];
+  const t1 = t0 + hours*3600*1000;
+  return points.filter(p => {
+    const tt = new Date(p.t).getTime();
+    return Number.isFinite(tt) && tt <= t1;
+  });
+}
+
+/* Best-effort extraction across common NWPS response shapes. */
+function extractNWPSForecastSeries(json){
+  //  sample shows top-level json.data[]
+  if(Array.isArray(json?.data) && json.data.length) return json.data;
+
+  // Some NWPS responses include nested forecast series
+  if(Array.isArray(json?.forecast?.timeSeries) && json.forecast.timeSeries.length){
+    const d = json.forecast.timeSeries[0]?.data;
+    if(Array.isArray(d) && d.length) return d;
+  }
+  if(Array.isArray(json?.forecast?.data) && json.forecast.data.length) return json.forecast.data;
+
+  return [];
+}
+
+async function fetchNWPSpredictions_MLLW({ hours = 72 } = {}){
+  const res = await fetch(NWPS_STAGEFLOW_URL, { cache: "no-store" });
+  if(!res.ok) throw new Error("NWPS stageflow failed " + res.status);
+
+  const j = await res.json();
+
+  const issuedTime = j.issuedTime || j.issued_time || null;
+  const raw = extractNWPSForecastSeries(j);
+
+  const pts = raw
+    .map(d => ({
+      t: d.validTime || d.valid_time,
+      ft: Number(d.primary)
+    }))
+    .filter(p => p.t && Number.isFinite(p.ft))
+    .sort((a,b)=> new Date(a.t) - new Date(b.t));
+
+  return { issuedTime, points: clipHoursFromFirst(pts, hours) };
+}
+
+
+/* =========================
+Alerts
+========================= */
+async function updateAlerts(){
+  try{
+    const url = `https://api.weather.gov/alerts/active?point=${ALERT_POINT.lat},${ALERT_POINT.lon}`;
+    const res=await fetch(url,{cache:"no-store"});
+    if(!res.ok) throw new Error("alerts "+res.status);
+    const j=await res.json();
+    const feats=j?.features||[];
+    const coastal=feats.find(f=>((f?.properties?.event||"").toLowerCase().includes("coastal flood")));
+    if(!coastal){ alertBanner.style.display="none"; return; }
+    const p=coastal.properties||{};
+    alertTitle.textContent=p.event||"Coastal Flood Alert";
+    const ends=p.ends?fmtESTFull(p.ends):(p.expires?fmtESTFull(p.expires):"—");
+    alertBody.textContent=(p.headline?p.headline+" · ":"")+"Ends: "+ends;
+    alertBanner.style.display="block";
+  }catch{
+    alertBanner.style.display="none";
+  }
+}
+
+/* =========================
+Timeseries quality requirements:
+- 15-min grid
+- do not connect across gaps (>15 min) -> nulls on grid achieve this
+- if jump >0.75 ft across 15 min, drop the later point (null)
+========================= */
+const TS_STEP_MIN = 15;
+const TS_STEP_MS  = TS_STEP_MIN * 60 * 1000;
+const TS_MAX_DELTA_FT = 0.75;
+
+function buildFixedGrid15Min_fromAny(series, startISO, endISO){
+  const start = new Date(startISO).getTime();
+  const end = new Date(endISO).getTime();
+
+  const m = new Map();
+  for(const p of (series||[])){
+    const t = new Date(p.t).getTime();
+    if(Number.isNaN(t) || !Number.isFinite(p.ft)) continue;
+    const snapped = Math.round(t/TS_STEP_MS)*TS_STEP_MS;
+    m.set(snapped, p.ft);
+  }
+
+  const labels=[], values=[];
+  const s0 = Math.floor(start/TS_STEP_MS)*TS_STEP_MS;
+  const e0 = Math.ceil(end/TS_STEP_MS)*TS_STEP_MS;
+
+  for(let t=s0; t<=e0; t+=TS_STEP_MS){
+    labels.push(new Date(t).toISOString());
+    values.push(m.has(t) ? m.get(t) : null);
+  }
+  return {labels, values};
+}
+
+function filterSpikes15Min(values, maxDeltaFt=TS_MAX_DELTA_FT){
+  const out = values.slice();
+  let lastGood = null;
+  for(let i=0;i<out.length;i++){
+    const v = out[i];
+    if(v===null || v===undefined || Number.isNaN(v)) continue;
+    if(lastGood===null){
+      lastGood = v;
+      continue;
+    }
+    if(Math.abs(v - lastGood) > maxDeltaFt){
+      out[i] = null; // do not plot that data
+    }else{
+      lastGood = v;
+    }
+  }
+  return out;
+}
+
+/* Resample predictions to 15-min grid via linear interpolation
+   (required for hourly / irregular NWPS forecasts) */
+function resampleTo15Min_MLLW(predSeries, startISO, endISO){
+  const start = new Date(startISO).getTime();
+  const end   = new Date(endISO).getTime();
+
+  const pts = (predSeries || [])
+    .map(p => ({
+      t: new Date(p.t).getTime(),
+      ft: Number(p.ft)
+    }))
+    .filter(p => Number.isFinite(p.t) && Number.isFinite(p.ft))
+    .sort((a,b) => a.t - b.t);
+
+  const labels = [];
+  const values = [];
+
+  const s0 = Math.floor(start / TS_STEP_MS) * TS_STEP_MS;
+  const e0 = Math.ceil(end   / TS_STEP_MS) * TS_STEP_MS;
+
+  if(!pts.length){
+    for(let t = s0; t <= e0; t += TS_STEP_MS){
+      labels.push(new Date(t).toISOString());
+      values.push(null);
+    }
+    return { labels, values };
+  }
+
+  const MAX_BRACKET_GAP_MS = 3 * 3600 * 1000; // do not interpolate across large gaps
+  let i = 0;
+
+  for(let t = s0; t <= e0; t += TS_STEP_MS){
+    labels.push(new Date(t).toISOString());
+
+    while(i < pts.length && pts[i].t < t) i++;
+
+    if(i === 0){
+      values.push(Math.abs(pts[0].t - t) <= TS_STEP_MS ? pts[0].ft : null);
+      continue;
+    }
+
+    if(i >= pts.length){
+      values.push(
+        Math.abs(pts[pts.length - 1].t - t) <= TS_STEP_MS
+          ? pts[pts.length - 1].ft
+          : null
+      );
+      continue;
+    }
+
+    const p0 = pts[i - 1];
+    const p1 = pts[i];
+    const gap = p1.t - p0.t;
+
+    if(gap <= 0 || gap > MAX_BRACKET_GAP_MS){
+      values.push(null);
+      continue;
+    }
+
+    if(t < p0.t || t > p1.t){
+      values.push(null);
+      continue;
+    }
+
+    const f = (t - p0.t) / gap;
+    values.push(p0.ft + f * (p1.ft - p0.ft));
+  }
+
+  return { labels, values };
+}
+
+const floodBandsPlugin = {
+  id: "floodBands",
+  beforeDatasetsDraw(chart) {
+    if (chart?.canvas?.id !== "tsChart") return;
+
+    const { ctx, chartArea, scales } = chart;
+    if (!ctx || !chartArea || !scales?.y) return;
+
+    const y = scales.y;
+    const left = chartArea.left, right = chartArea.right;
+
+    const T = THRESH[DISPLAY_DATUM];
+    const yMinor = y.getPixelForValue(T.minorLow);
+    const yModer = y.getPixelForValue(T.moderateLow);
+    const yMajor = y.getPixelForValue(T.majorLow);
+
+    if (![yMinor, yModer, yMajor].every(Number.isFinite)) return;
+
+    ctx.save();
+
+// ===== Flood bands (stronger / less transparent) =====
+
+ctx.fillStyle = "rgba(251,191,36,.14)";   // Minor
+ctx.fillRect(left, yModer, right - left, yMinor - yModer);
+
+ctx.fillStyle = "rgba(251,113,133,.14)";  // Moderate
+ctx.fillRect(left, yMajor, right - left, yModer - yMajor);
+
+ctx.fillStyle = "rgba(167,139,250,.14)";  // Major
+ctx.fillRect(left, chartArea.top, right - left, yMajor - chartArea.top);
+
+    // dashed lines
+
+    ctx.restore();
+  }
+};
+
+Chart.register(floodBandsPlugin);
+//   Force one dataset to draw LAST (on top), regardless of internal sorting
+const drawDatasetLastPlugin = {
+  id: "drawDatasetLast",
+  afterDatasetsDraw(chart, args, pluginOpts) {
+    const idx = chart.data.datasets.findIndex(d => d && d._drawLast === true);
+    if (idx < 0) return;
+
+    const meta = chart.getDatasetMeta(idx);
+    if (!meta || meta.hidden) return;
+
+    // Draw it again on top of everything
+    meta.controller.draw();
+  }
+};
+
+Chart.register(drawDatasetLastPlugin);
+
+/* =========================
+Core state
+========================= */
+let HIGH_TIDES_NAVD=[];
+let annualChart=null, tsChart=null, monthAvgChart=null;
+let YEARS=[], annualMinor=[], annualModerate=[], annualMajor=[];
+
+const STATE = { lastNavd:null, ytdNavd:null, todayNavd:null, obs24Navd:null, pred72Mllw:null };
+
+function sliceAfter(series, startISO){
+  const s = new Date(startISO).getTime();
+  return (series||[]).filter(p=>new Date(p.t).getTime()>=s);
+}
+
+function colorForFtDisplay(ftDisplay){
+  const T = THRESH[DISPLAY_DATUM];
+  if(ftDisplay>=T.majorLow) return "rgba(167,139,250,.95)";
+  if(ftDisplay>=T.moderateLow) return "rgba(251,113,133,.95)";
+  if(ftDisplay>=T.minorLow) return "rgba(251,191,36,.95)";
+  return "rgba(45,212,191,.90)";
+}
+
+function extractFloodPeaks_NAVD(series){
+  if(!series || series.length < 3) return [];
+
+  const T = THRESH.NAVD88;
+
+  // sort ascending by time + sanitize ft
+  const pts = [...series]
+    .map(p => ({ t: p.t, ft: Number(p.ft) }))
+    .filter(p => p.t && Number.isFinite(p.ft))
+    .sort((a,b)=> new Date(a.t) - new Date(b.t));
+
+  if(pts.length < 3) return [];
+
+  // find local maxima (ALL peaks — no minor-threshold gate)
+  const candidates = [];
+  for(let i=1;i<pts.length-1;i++){
+    const a = pts[i-1], b = pts[i], c = pts[i+1];
+    if(b.ft >= a.ft && b.ft >= c.ft){
+      // avoid flat triple-plateau
+      if(!(b.ft === a.ft && b.ft === c.ft)) candidates.push(b);
+    }
+  }
+  if(!candidates.length) return [];
+
+  // de-cluster peaks that are too close together (keep the highest within the window)
+  const minSepMs = PEAK_MIN_SEP_MINUTES * 60 * 1000;
+
+  const kept = [];
+  let cur = candidates[0];
+
+  for(let i=1;i<candidates.length;i++){
+    const p = candidates[i];
+
+    const pt = new Date(p.t).getTime();
+    const ct = new Date(cur.t).getTime();
+
+    if(Number.isFinite(pt) && Number.isFinite(ct) && (pt - ct) <= minSepMs){
+      if(p.ft > cur.ft) cur = p;
+    }else{
+      kept.push(cur);
+      cur = p;
+    }
+  }
+  kept.push(cur);
+
+  // classify each peak by NAVD thresholds (includes "Below")
+  return kept.map(p=>{
+    let type = "Below";
+    if(p.ft >= T.majorLow) type = "Major";
+    else if(p.ft >= T.moderateLow) type = "Moderate";
+    else if(p.ft >= T.minorLow) type = "Minor";
+    return { t: p.t, ft: p.ft, type };
+  });
+}
+
+      /* =========================
+STEP 3 — build live flood peak events since Jan 1 2026
+These are NAVD88 peaks from USGS 15-min data (same datum as  TXT events)
+========================= */
+async function fetchNOAAHiloHighs({ station, beginYMD, endYMD, datum="MLLW" }){
+  const url = new URL("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter");
+  url.searchParams.set("product","predictions");
+  url.searchParams.set("application", COOPS_APP || "web");
+  url.searchParams.set("begin_date", beginYMD); // YYYYMMDD
+  url.searchParams.set("end_date", endYMD);     // YYYYMMDD
+  url.searchParams.set("datum", datum);
+  url.searchParams.set("station", station);
+  url.searchParams.set("time_zone","gmt");
+  url.searchParams.set("units","english");
+  url.searchParams.set("interval","hilo");
+  url.searchParams.set("format","json");
+
+  const res = await fetch(url.toString(), { cache:"no-store" });
+  if(!res.ok) throw new Error("NOAA hilo predictions failed " + res.status);
+  const j = await res.json();
+
+  const preds = j?.predictions || [];
+  return preds
+    .filter(p => String(p.type || "").toUpperCase() === "H")
+    .map(p => ({
+      t: new Date(String(p.t).replace(" ", "T") + "Z").toISOString(), // GMT -> ISO
+      ft: Number(p.v)
+    }))
+    .filter(p => p.t && Number.isFinite(p.ft))
+    .sort((a,b)=> new Date(a.t) - new Date(b.t));
+}
+
+function ymdCompactFromISO(iso){
+  const d = new Date(iso);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth()+1).padStart(2,"0");
+  const da = String(d.getUTCDate()).padStart(2,"0");
+  return `${y}${m}${da}`;
+}
+
+async function buildLiveFloodPeaksSince2026(){
+  const startISO = LIVE_START_ISO;
+  const endISO   = nowISO();
+
+  // observed NAVD88 (15-min)
+  const obs = await fetchObservedSeries({ startISO, endISO });
+  if(!obs || !obs.length) return [];
+
+  const obsPts = obs
+    .map(p => ({ tMs: new Date(p.t).getTime(), ft: Number(p.ft), t: p.t }))
+    .filter(p => Number.isFinite(p.tMs) && Number.isFinite(p.ft))
+    .sort((a,b)=>a.tMs-b.tMs);
+
+  // predicted HIGH tide times (NOAA hilo)
+  const highs = await fetchNOAAHiloHighs({
+    station: NOAA_STATION_TIDECLOCK,
+    beginYMD: ymdCompactFromISO(startISO),
+    endYMD: ymdCompactFromISO(endISO),
+    datum: "MLLW"
+  });
+
+  const winMs = CREST_WINDOW_HOURS * 3600 * 1000;    // ±2h search window
+  const reqMs = REQUIRE_WITHIN_HOURS * 3600 * 1000;  // must have obs within ±1h
+
+  function bestObsNear(centerMs){
+    const lo = centerMs - winMs;
+    const hi = centerMs + winMs;
+
+    let best = null;
+    let haveReq = false;
+
+    for(const p of obsPts){
+      if(p.tMs < lo) continue;
+      if(p.tMs > hi) break;
+
+      if(Math.abs(p.tMs - centerMs) <= reqMs) haveReq = true;
+      if(best === null || p.ft > best.ft) best = p;
+    }
+
+    if(!best || !haveReq) return null;
+    return best;
+  }
+
+  const out = [];
+  for(const h of highs){
+    const cMs = new Date(h.t).getTime();
+    if(!Number.isFinite(cMs)) continue;
+
+    const best = bestObsNear(cMs);
+    if(!best) continue;
+
+    out.push({
+      t: best.t,          // observed timestamp
+      ft: best.ft,        // NAVD88
+      kind: "LiveHigh",   // label only
+      source: "USGS+NOAA",
+      type: classifyByNavd(best.ft).short  // optional
+    });
+  }
+
+  // de-dupe
+  const seen = new Set();
+  return out.filter(e=>{
+    const k = `${e.t}|${Number(e.ft).toFixed(3)}`;
+    if(seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
+
+/* Peak counting uses NAVD thresholds */
+function countFloodPeaks_NAVD(series){
+  if(!series || series.length<3) return {minor:0, moderate:0, major:0};
+  const T = THRESH.NAVD88;
+
+  const pts = [...series].sort((a,b)=>new Date(a.t)-new Date(b.t));
+  const candidates=[];
+
+  for(let i=1;i<pts.length-1;i++){
+    const a=pts[i-1], b=pts[i], c=pts[i+1];
+    if(b.ft>=T.minorLow && b.ft>=a.ft && b.ft>=c.ft){
+      if(!(b.ft===a.ft && b.ft===c.ft)) candidates.push(b);
+    }
+  }
+  if(!candidates.length) return {minor:0, moderate:0, major:0};
+
+  const minSepMs = PEAK_MIN_SEP_MINUTES*60*1000;
+  const kept=[];
+  let cur = candidates[0];
+  for(let i=1;i<candidates.length;i++){
+    const p=candidates[i];
+    if(new Date(p.t)-new Date(cur.t) <= minSepMs){
+      if(p.ft>cur.ft) cur=p;
+    }else{
+      kept.push(cur);
+      cur=p;
+    }
+  }
+  kept.push(cur);
+
+  let minor=0, moderate=0, major=0;
+  for(const p of kept){
+    if(p.ft>=T.majorLow) major++;
+    else if(p.ft>=T.moderateLow) moderate++;
+    else minor++;
+  }
+  return {minor, moderate, major};
+}
+
+/* Annual counts from TXT */
+function countAnnualFloodsFromTXT(eventsNavd){
+  const T = THRESH.NAVD88;
+  const byYear = new Map();
+  for(const e of eventsNavd){
+    const y = e.y || (new Date(e.t)).getUTCFullYear();
+    if(!byYear.has(y)) byYear.set(y,{minor:0, moderate:0, major:0});
+    if(e.ft >= T.minorLow){
+      const rec = byYear.get(y);
+      if(e.ft >= T.majorLow) rec.major++;
+      else if(e.ft >= T.moderateLow) rec.moderate++;
+      else rec.minor++;
+    }
+  }
+  return byYear;
+}
+
+function buildAnnualArraysFromHistory_completedYears(){
+  const T = THRESH.NAVD88;
+
+  const yearCounts = new Map(); // y -> {minor, moderate, major}
+
+  for(const e of HIGH_TIDES_NAVD){
+    const tMs = new Date(e.t).getTime();
+    if(!Number.isFinite(tMs)) continue;
+
+    const y = new Date(e.t).getUTCFullYear();
+    const ft = +e.ft;
+    if(!Number.isFinite(ft)) continue;
+
+    if(!yearCounts.has(y)) yearCounts.set(y,{minor:0, moderate:0, major:0});
+
+    if(ft >= T.majorLow) yearCounts.get(y).major++;
+    else if(ft >= T.moderateLow) yearCounts.get(y).moderate++;
+    else if(ft >= T.minorLow) yearCounts.get(y).minor++;
+  }
+
+  const yearsAll = Array.from(yearCounts.keys()).sort((a,b)=>a-b);
+  const curYear = new Date().getFullYear();
+  const yearsCompleted = yearsAll.filter(y => y < curYear);
+
+  YEARS = yearsCompleted;
+  annualMinor = yearsCompleted.map(y => yearCounts.get(y)?.minor ?? 0);
+  annualModerate = yearsCompleted.map(y => yearCounts.get(y)?.moderate ?? 0);
+  annualMajor = yearsCompleted.map(y => yearCounts.get(y)?.major ?? 0);
+}
+
+
+
+function overwriteCurrentYearBarWithLiveCounts(liveCounts){
+  if(!liveCounts) return;
+  const { y: curYear } = getESTParts(new Date());
+
+  let idx = YEARS.indexOf(curYear);
+  if(idx < 0){
+    // If the annual arrays were built as "completed years only", append current year.
+    YEARS.push(curYear);
+    annualMinor.push(0);
+    annualModerate.push(0);
+    annualMajor.push(0);
+    idx = YEARS.length - 1;
+
+    // Keep labels sorted if you want strict order:
+    // (If you sort, you must reorder the arrays too; simplest is to not sort here.)
+  }
+
+  annualMinor[idx] = liveCounts.minor;
+  annualModerate[idx] = liveCounts.moderate;
+  annualMajor[idx] = liveCounts.major;
+}
+
+function quadFit(xs, ys){
+  // Fits y = a x^2 + b x + c (least squares)
+  // Returns {a,b,c} or null if not enough data.
+  const n = Math.min(xs.length, ys.length);
+  if(n < 3) return null;
+
+  // Build normal equations:
+  // [Σx4 Σx3 Σx2][a] = [Σx2y]
+  // [Σx3 Σx2 Σx1][b] = [Σxy ]
+  // [Σx2 Σx1 Σ1 ][c] = [Σy  ]
+  let Sx=0, Sx2=0, Sx3=0, Sx4=0;
+  let Sy=0, Sxy=0, Sx2y=0;
+
+  for(let i=0;i<n;i++){
+    const x = Number(xs[i]);
+    const y = Number(ys[i]);
+    if(!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const x2 = x*x;
+    Sx  += x;
+    Sx2 += x2;
+    Sx3 += x2*x;
+    Sx4 += x2*x2;
+
+    Sy   += y;
+    Sxy  += x*y;
+    Sx2y += x2*y;
+  }
+
+  // Solve 3x3 via Cramer's rule or elimination (simple elimination here)
+  const A = [
+    [Sx4, Sx3, Sx2],
+    [Sx3, Sx2, Sx ],
+    [Sx2, Sx , n  ]
+  ];
+  const B = [Sx2y, Sxy, Sy];
+
+  // Gaussian elimination
+  for(let col=0; col<3; col++){
+    // pivot
+    let pivot = col;
+    for(let r=col+1; r<3; r++){
+      if(Math.abs(A[r][col]) > Math.abs(A[pivot][col])) pivot = r;
+    }
+    if(Math.abs(A[pivot][col]) < 1e-12) return null;
+
+    // swap
+    if(pivot !== col){
+      [A[pivot], A[col]] = [A[col], A[pivot]];
+      [B[pivot], B[col]] = [B[col], B[pivot]];
+    }
+
+    // eliminate
+    for(let r=col+1; r<3; r++){
+      const f = A[r][col] / A[col][col];
+      for(let c=col; c<3; c++) A[r][c] -= f * A[col][c];
+      B[r] -= f * B[col];
+    }
+  }
+
+  // back-substitute
+  const x3 = [0,0,0];
+  for(let r=2; r>=0; r--){
+    let sum = B[r];
+    for(let c=r+1; c<3; c++) sum -= A[r][c] * x3[c];
+    x3[r] = sum / A[r][r];
+  }
+
+  const [a,b,c] = x3;
+  return {a,b,c};
+}
+
+function evalQuad({a,b,c}, x){
+  return a*x*x + b*x + c;
+}
+
+/* Annual chart */
+function ensureAnnual(){
+  if(annualChart) return;
+
+  const ctx = $("annualChart"); //  helper returns the canvas element
+
+  annualChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: YEARS,
+      datasets: [
+        {
+          label: "Minor",
+          data: annualMinor,
+          stack: "f",
+          borderWidth: 0,
+          backgroundColor: "rgba(251,191,36,.85)"
+        },
+        {
+          label: "Moderate",
+          data: annualModerate,
+          stack: "f",
+          borderWidth: 0,
+          backgroundColor: "rgba(251,113,133,.80)"
+        },
+        {
+          label: "Major",
+          data: annualMajor,
+          stack: "f",
+          borderWidth: 0,
+          backgroundColor: "rgba(167,139,250,.80)"
+        },
+
+        //   Trendline MUST be the 4th dataset (index 3)
+        {
+          type: "line",
+          label: "Quadratic trend (Total)",
+          data: [],                 // filled in renderAnnual()
+          borderWidth: 3,
+          pointRadius: 0,
+          tension: 0.2,
+          spanGaps: true,
+
+          // critical: don't stack the line with bars
+          stack: undefined,
+
+          // keep it above bars
+          order: 99,
+
+          // make it solid (borderDash: [6,4] if you want dashed)
+          borderDash: [2, 0],
+
+          // pick a readable line color (you can swap to a CSS var if you want)
+          borderColor: "rgba(234,240,255,.85)"
+        }
+      ]
+    },
+
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+
+      //   hover anywhere on the bar → show ALL stacks for that year
+      interaction: { mode: "index", intersect: false },
+
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            color: "rgba(234,240,255,.88)",
+            font: { weight: "950" },
+            boxWidth: 16
+          }
+        },
+
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          callbacks: {
+            title: (items) => items?.[0]?.label ?? "",
+            label: (ctx) => {
+              const v = ctx.parsed?.y;
+              if (!Number.isFinite(v)) return null;
+              return `${ctx.dataset.label}: ${Math.round(v)}`;
+            },
+         footer: (items) => {
+  const total = (items || [])
+    .filter(it => it.dataset.type !== "line") //   exclude quadratic
+    .reduce((sum, it) => {
+      const v = it.parsed?.y;
+      return sum + (Number.isFinite(v) ? v : 0);
+    }, 0);
+
+  return `Total: ${Math.round(total)}`;
+}
+
+          }
+        }
+      },
+
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            color: "rgba(169,182,211,.9)",
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 7
+          },
+          grid: { color: "rgba(255,255,255,.06)" }
+        },
+        y: {
+          stacked: true,
+          ticks: { color: "rgba(169,182,211,.9)", precision: 0 },
+          grid: { color: "rgba(255,255,255,.06)" }
+        }
+      }
+    }
+  });
+}
+
+
+function renderAnnual(){
+  ensureAnnual();
+
+  annualChart.data.labels = YEARS;
+  annualChart.data.datasets[0].data = annualMinor;
+  annualChart.data.datasets[1].data = annualModerate;
+  annualChart.data.datasets[2].data = annualMajor;
+
+  // ---- Quadratic trend on TOTAL (minor+moderate+major) ----
+  const lastFullYear = 2025; // adjust if needed
+
+  // Build totals for each year
+  const totalsAll = YEARS.map((y,i)=>
+    (annualMinor[i]||0) + (annualModerate[i]||0) + (annualMajor[i]||0)
+  );
+
+  // Fit only through lastFullYear (so partial current year doesn’t skew)
+  const fit = YEARS
+    .map((y,i)=>({ y, t: totalsAll[i] }))
+    .filter(d => d.y <= lastFullYear);
+
+  // If not enough points, trend = nulls
+  let trend = totalsAll.map(_=>null);
+
+  if(fit.length >= 3){
+    const fitYears  = fit.map(d=>d.y);
+    const fitTotals = fit.map(d=>d.t);
+
+    const meanYear = fitYears.reduce((s,y)=>s+y,0) / fitYears.length;
+    const xsFit = fitYears.map(y => y - meanYear);
+
+    const coeff = quadFit(xsFit, fitTotals);
+
+    if(coeff){
+      // Evaluate trend for ALL YEARS on same centered x-scale
+      const xsAll = YEARS.map(y => y - meanYear);
+      trend = xsAll.map(x => evalQuad(coeff, x));
+    }
+  }
+
+  // dataset index 3 = trend
+  if(annualChart.data.datasets[3]){
+    annualChart.data.datasets[3].data = trend;
+  }
+
+  annualChart.update();
+  applyAnnualView();
+}
+
+
+/* Timeseries tick labels (daily) */
+function buildDailyTickCallbackSkipFirstDay(labels){
+  const seenDays = new Set();
+  let firstDay = null;
+  return (value, index)=>{
+    const iso = labels[index];
+    if(!iso) return "";
+    const dayStr = fmtESTDay(iso);
+    if(firstDay === null) firstDay = dayStr;
+    if(seenDays.has(dayStr)) return "";
+    seenDays.add(dayStr);
+    if(dayStr === firstDay) return "";
+    return dayStr;
+  };
+}
+
+/* Timeseries chart (Observed + Predicted), with NO LINE across null gaps */
+function ensureTsChart(){
+  if(tsChart) return;
+
+  tsChart = new Chart($("tsChart"),{
+    type:"line",
+    data:{
+      labels:[],
+      datasets:[
+        {
+          label:"Observed (USGS water level)",
+          data:[],
+          borderWidth:2,
+          pointRadius:0,
+          pointHoverRadius:0,
+          pointHitRadius:0,
+          tension:0.25,
+          spanGaps:false, // do NOT connect across missing obs
+          borderColor:"rgba(45,212,191,.9)",
+          segment:{
+            borderColor:(ctx)=>{
+              const y = ctx?.p1?.parsed?.y;
+              if(y===null || y===undefined || Number.isNaN(y)) return "rgba(45,212,191,.9)";
+              return colorForFtDisplay(+y);
+            }
+          }
+        },
+        {
+          label:"Predicted (NOAA)",
+          data:[],
+          borderWidth:2,
+          pointRadius:0,
+          pointHoverRadius:0,
+          pointHitRadius:0,
+          tension:0.25,
+          spanGaps:true,
+
+          //   DASHED predicted line
+          borderDash:[8,6],
+          borderDashOffset:0,
+
+          borderColor:"rgba(45,212,191,.9)",
+          segment:{
+            borderColor:(ctx)=>{
+              const y = ctx?.p1?.parsed?.y;
+              if(y===null || y===undefined || Number.isNaN(y)) return "rgba(45,212,191,.9)";
+              return colorForFtDisplay(+y);
+            }
+          }
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{ mode:"index", intersect:false },
+
+      plugins:{
+        legend:{
+          labels:{
+            color:"rgba(234,240,255,.88)",
+            font:{ weight:"950" }
+          }
+        },
+        tooltip:{
+          callbacks:{
+            title:(items)=>{
+              const idx = items?.[0]?.dataIndex;
+              if(idx == null) return "";
+              const iso = tsChart?.data?.labels?.[idx];
+              return iso ? fmtESTFull(iso) : "";
+            },
+            label:(ctx)=>{
+              const v = ctx.parsed?.y;
+              if(!Number.isFinite(v)) return null;
+              return `${ctx.dataset.label}: ${v.toFixed(2)} ${unitText()}`;
+            }
+          }
+        }
+      },
+
+      scales:{
+        x:{
+          ticks:{
+            color:"rgba(169,182,211,.9)",
+            autoSkip:false,
+            maxRotation:0,
+            callback:()=>"" // overwritten in updateTsChartFromState()
+          },
+          grid:{ color:"rgba(255,255,255,.06)" }
+        },
+        y:{
+          ticks:{
+            color:"rgba(169,182,211,.9)",
+            font:{ size:14, weight:"850" }
+          },
+          grid:{ color:"rgba(255,255,255,.06)" },
+          title:{
+            display:true,
+            text: unitText(),
+            color:"rgba(169,182,211,.9)",
+            font:{ size:18, weight:"950" }
+          }
+        }
+      }
+    }
+  });
+}
+
+
+/* Build 15-min obs grid + plot RAW PETSS predictions (no interpolation) */
+function isTopOfHourISO(iso){
+  const d = new Date(iso);
+  return d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0;
+}
+
+// Build 15-min labels only (no values)
+function build15MinLabels(startISO, endISO){
+  const start = new Date(startISO).getTime();
+  const end   = new Date(endISO).getTime();
+
+  const s0 = Math.floor(start/TS_STEP_MS)*TS_STEP_MS;
+  const e0 = Math.ceil(end/TS_STEP_MS)*TS_STEP_MS;
+
+  const labels = [];
+  for(let t = s0; t <= e0; t += TS_STEP_MS){
+    labels.push(new Date(t).toISOString());
+  }
+  return labels;
+}
+
+function updateTsChartFromState(){
+  const endISO = nowISO();
+  const startObsISO = new Date(new Date(endISO).getTime() - 24*3600*1000).toISOString();
+
+  // last obs timestamp (or now)
+  const lastObsT = (STATE.obs24Navd && STATE.obs24Navd.length)
+    ? STATE.obs24Navd[STATE.obs24Navd.length - 1].t
+    : endISO;
+
+  //   predictions start at NEXT hour
+  const lastObsMs = new Date(lastObsT).getTime();
+  const predStartMs = floorToHourMs(lastObsMs) + HOUR_MS;
+  const predStartISO = new Date(predStartMs).toISOString();
+  const predEndISO   = new Date(predStartMs + 72*3600*1000).toISOString();
+  const predEndMs    = new Date(predEndISO).getTime();
+
+  //   15-min axis from obs start → forecast end
+  const labels = build15MinLabels(startObsISO, predEndISO);
+
+  // -------------------------
+  // Observed (NAVD88) -> 15-min grid -> display
+  // -------------------------
+  const obsGrid = buildFixedGrid15Min_fromAny(STATE.obs24Navd || [], startObsISO, endISO);
+  // obsGrid.labels covers only obs window; we need values over the full label axis
+  // So: map obs points onto the full labels using the same snap logic
+
+  const obsMap = new Map();
+  for(const p of (STATE.obs24Navd || [])){
+    const t = new Date(p.t).getTime();
+    const ft = Number(p.ft);
+    if(!Number.isFinite(t) || !Number.isFinite(ft)) continue;
+    const snapped = Math.round(t/TS_STEP_MS)*TS_STEP_MS;
+    obsMap.set(snapped, ft);
+  }
+
+  const obsValsDisplay = labels.map(iso=>{
+    const t = new Date(iso).getTime();
+    const v = obsMap.has(t) ? obsMap.get(t) : null;
+    return (v==null) ? null : toDisplayFtFromNavd(v);
+  });
+
+  // (optional) keep  spike filter for OBS only (15-min makes sense)
+  const obsFiltered = filterSpikes15Min(
+    obsValsDisplay.map(v => (Number.isFinite(v) ? v : null)),
+    TS_MAX_DELTA_FT
+  );
+
+// -------------------------
+// Predicted (MLLW) -> resample to 15-min -> display
+// -------------------------
+const predRaw = (STATE.pred72Mllw || [])
+  .map(p => ({ t:p.t, ft:Number(p.ft) }))
+  .filter(p=>{
+    const tMs = new Date(p.t).getTime();
+    return p.t && Number.isFinite(p.ft) && Number.isFinite(tMs)
+      && tMs >= predStartMs
+      && tMs <= predEndMs;
+  });
+
+// Resample to 15-min grid (fills in-between so the line can draw)
+const predRes = resampleTo15Min_MLLW(predRaw, predStartISO, predEndISO);
+
+// Put resampled predictions onto the FULL axis labels
+const predMap = new Map(); // ms -> ft (MLLW)
+for(let i=0;i<predRes.labels.length;i++){
+  const ms = new Date(predRes.labels[i]).getTime();
+  const ft = predRes.values[i];
+  if(Number.isFinite(ms) && Number.isFinite(ft)) predMap.set(ms, ft);
+}
+
+const predValsDisplay = labels.map(iso=>{
+  const t = new Date(iso).getTime();
+  if(t < predStartMs || t > predEndMs) return null;
+  const mllw = predMap.get(t);
+  return Number.isFinite(mllw) ? toDisplayFtFromMllw(mllw) : null;
+});
+
+
+  // -------------------------
+  // Plot
+  // -------------------------
+  ensureTsChart();
+  tsChart.data.labels = labels;
+  tsChart.data.datasets[0].data = obsFiltered;     // observed 15-min
+  tsChart.data.datasets[1].data = predValsDisplay; // predicted hourly-only
+
+  tsChart.options.scales.x.ticks.callback = buildDailyTickCallbackSkipFirstDay(labels);
+  tsChart.options.scales.y.title.text = unitText();
+
+  // y-scale includes thresholds
+  const {minor, moderate, major} = thresholdsDisplay();
+  const ys = [...obsFiltered, ...predValsDisplay].filter(v => Number.isFinite(v));
+  ys.push(minor, moderate, major);
+
+  let yMin = Math.min(...ys);
+  let yMax = Math.max(...ys);
+  const pad = Math.max(0.25, (yMax - yMin) * 0.08);
+  yMin -= pad; yMax += pad;
+
+  const STEP = 1.0;
+  yMin = Math.floor(yMin / STEP) * STEP;
+  yMax = Math.ceil(yMax / STEP) * STEP;
+
+  tsChart.options.scales.y.min = yMin;
+  tsChart.options.scales.y.max = yMax;
+  tsChart.options.scales.y.ticks.stepSize = STEP;
+
+  tsChart.update();
+}
+
+
+
+
+
+/* =========================
+DOY cumulative flooding (NO TXT) — REDONE (clean + datum-safe)
+- Pull USGS Daily Values (DV) for  site/param in NAVD88:
+    00021 = Daily Maximum (high)
+    00022 = Daily (Low-High) / secondary daily stat (depends on USGS series)
+- Count “events” >= flood stage:
+    flood stage = THRESH[DISPLAY_DATUM].minorLow (auto-updates when datum toggles)
+- Build per-year cumulative counts on a 365-day calendar axis (skip Feb 29)
+- Plot average + min/max band
+========================= */
+
+const DOY_START_ISO = "2000-01-01"; // backfill start (YYYY-MM-DD)
+let DOY_CACHE = null;               // { years, avg, min, max, stageLabel }
+let doyCumChart = null;
+
+/* Uses  dashboard’s Minor threshold automatically (datum-aware) */
+function doyFloodStageDisplayFt(){
+  return THRESH?.[DISPLAY_DATUM]?.minorLow ?? 0;
+}
+function doyStageLabel(){
+  const v = doyFloodStageDisplayFt();
+  return `Flood stage ≥ ${v.toFixed(2)} ft (${DISPLAY_DATUM})`;
+}
+
+/* -------------------------
+USGS DV fetch (NAVD88)
+------------------------- */
+async function fetchUSGSDV({ start="2000-01-01", end=null } = {}){
+  const endISO = end || new Date().toISOString().slice(0,10);
+
+  const url = new URL("https://waterservices.usgs.gov/nwis/dv/");
+  url.searchParams.set("format","json");
+  url.searchParams.set("sites", USGS_SITE);
+  url.searchParams.set("parameterCd", USGS_PARAM_PRIMARY);     // e.g., 72279
+  url.searchParams.set("startDT", start);
+  url.searchParams.set("endDT", endISO);
+  url.searchParams.set("statisticCd", "00021,00022");
+  url.searchParams.set("siteStatus","all");
+
+  const res = await fetch(url.toString(), { cache:"no-store" });
+  if(!res.ok) throw new Error("USGS DV failed " + res.status);
+  return res.json();
+}
+
+/* Identify a DV series’ statistic code reliably if possible */
+function getStatCode(ts){
+  const opt = ts?.variable?.options?.option || [];
+  const hit = opt.find(o => String(o?.name||"").toLowerCase() === "statistic code");
+  return hit ? String(hit.value) : null;
+}
+
+/* Extract DV points (date -> value), date is YYYY-MM-DD */
+function extractDVPoints(ts){
+  const vals = ts?.values?.[0]?.value || [];
+  return vals
+    .map(v => ({
+      date: String(v?.dateTime || "").slice(0,10),
+      ft: Number(v?.value)
+    }))
+    .filter(p => /^\d{4}-\d{2}-\d{2}$/.test(p.date) && Number.isFinite(p.ft));
+}
+
+/* Fetch + normalize into rows:
+   [{y,m,d,date, highNavd, lowhiNavd}]  (NAVD88) */
+async function fetchUSGSDailyStats_NAVD88({ start=DOY_START_ISO, end=null } = {}){
+  const j = await fetchUSGSDV({ start, end });
+  const tss = j?.value?.timeSeries || [];
+  if(!tss.length) throw new Error("USGS DV returned no timeSeries.");
+
+  // Bucket series by statistic code
+  let tsHigh = null, tsLowHi = null;
+
+  for(const ts of tss){
+    const sc = getStatCode(ts);
+    if(sc === "00021") tsHigh = ts;
+    else if(sc === "00022") tsLowHi = ts;
+  }
+
+  // Fallback: if statCode metadata isn’t present, pick two largest series.
+  if(!tsHigh || !tsLowHi){
+    const sorted = [...tss].sort((a,b)=>(b?.values?.[0]?.value?.length||0)-(a?.values?.[0]?.value?.length||0));
+    if(!tsHigh)  tsHigh  = sorted[0] || null;
+    if(!tsLowHi) tsLowHi = sorted[1] || null;
+  }
+  if(!tsHigh)  throw new Error("USGS DV: could not identify daily HIGH (00021) series.");
+  if(!tsLowHi) throw new Error("USGS DV: could not identify daily LOW-HIGH (00022) series.");
+
+  const highPts  = extractDVPoints(tsHigh);
+  const lowhiPts = extractDVPoints(tsLowHi);
+
+  const map = new Map(); // date -> {highNavd, lowhiNavd}
+  for(const p of highPts){
+    if(!map.has(p.date)) map.set(p.date, { highNavd:null, lowhiNavd:null });
+    map.get(p.date).highNavd = p.ft;
+  }
+  for(const p of lowhiPts){
+    if(!map.has(p.date)) map.set(p.date, { highNavd:null, lowhiNavd:null });
+    map.get(p.date).lowhiNavd = p.ft;
+  }
+
+  const rows = [];
+  for(const [date, v] of map.entries()){
+    const y = +date.slice(0,4);
+    const m = +date.slice(5,7);
+    const d = +date.slice(8,10);
+    rows.push({ y, m, d, date, highNavd:v.highNavd, lowhiNavd:v.lowhiNavd });
+  }
+  rows.sort((a,b)=> a.date.localeCompare(b.date));
+  return rows;
+}
+
+/* -------------------------
+Calendar index (365-day axis)
+------------------------- */
+function isLeapYear(y){
+  return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+}
+// returns 0..364, or null for Feb 29
+function calIndex365(y,m,d){
+  if(m === 2 && d === 29) return null;
+  const dt   = new Date(Date.UTC(y, m-1, d, 12,0,0));
+  const jan1 = new Date(Date.UTC(y, 0,   1, 12,0,0));
+  let idx = Math.floor((dt - jan1)/86400000); // 0-based day of year
+  if(isLeapYear(y) && m > 2) idx -= 1;        // compress after Feb 29
+  return idx;                                  // 0..364
+}
+function monthStarts365(){
+  const y = 2021; // non-leap
+  const out = [];
+  for(let m=1;m<=12;m++) out.push(calIndex365(y,m,1));
+  return out;
+}
+
+/* -------------------------
+Compute stats
+- counts “events” separately: daily high + daily low-high if each meets stage
+------------------------- */
+function computeDOYStatsFromDailyRows(rows){
+  const stageDisplay = doyFloodStageDisplayFt();
+
+  function meetsStage(navdFt){
+    const disp = toDisplayFtFromNavd(navdFt);
+    return Number.isFinite(disp) && disp >= stageDisplay;
+  }
+
+  const byYear = new Map(); // y -> dailyCounts[365]
+
+  for(const r of rows){
+    const idx = calIndex365(r.y, r.m, r.d);
+    if(idx === null) continue;
+
+    let add = 0;
+    if(Number.isFinite(r.highNavd)  && meetsStage(r.highNavd))  add += 1;
+    if(Number.isFinite(r.lowhiNavd) && meetsStage(r.lowhiNavd)) add += 1;
+    if(add === 0) continue;
+
+    if(!byYear.has(r.y)) byYear.set(r.y, new Array(365).fill(0));
+    byYear.get(r.y)[idx] += add;
+  }
+
+  const years = Array.from(byYear.keys()).sort((a,b)=>a-b);
+  if(!years.length) return null;
+
+  // cumulative per year
+  const cumByYear = years.map(y=>{
+    const daily = byYear.get(y);
+    const cum = new Array(365).fill(0);
+    let run = 0;
+    for(let i=0;i<365;i++){
+      run += (daily[i] || 0);
+      cum[i] = run;
+    }
+    return { y, cum };
+  });
+
+  const avg = new Array(365).fill(0);
+  const min = new Array(365).fill(0);
+  const max = new Array(365).fill(0);
+
+  for(let i=0;i<365;i++){
+    let lo = Infinity, hi = -Infinity, sum = 0;
+    for(const yr of cumByYear){
+      const v = yr.cum[i];
+      if(v < lo) lo = v;
+      if(v > hi) hi = v;
+      sum += v;
+    }
+    avg[i] = sum / cumByYear.length;
+    min[i] = lo;
+    max[i] = hi;
+  }
+
+  return { years, avg, min, max, stageLabel: doyStageLabel() };
+}
+
+      function doyIndexToMonthDay(idx){
+  // idx = 0..364 on non-leap calendar
+  const base = new Date(Date.UTC(2021, 0, 1)); // non-leap year
+  const d = new Date(base.getTime() + idx * 86400000);
+
+  const m = d.toLocaleString("en-US", { month:"short", timeZone:"UTC" });
+  const day = d.getUTCDate();
+  return `${m} ${day}`;
+}
+
+      function buildYTDSeriesFromDailyRows(){
+  // Uses the same logic as DOY (daily stats rows -> counts -> cumulative),
+  // but only for the current year and stops at "today".
+
+  if(!DOY_ROWS_CACHE || !DOY_ROWS_CACHE.length) return null;
+
+const { y: yNow, m: mNow, d: dNow } = getESTParts(new Date());
+
+
+  const todayIdx = calIndex365(yNow, mNow, dNow);
+  if(todayIdx === null) return null;
+
+  const stageDisplay = THRESH?.[DISPLAY_DATUM]?.minorLow ?? 0;
+
+  function meetsStage(navdFt){
+    const disp = toDisplayFtFromNavd(navdFt);
+    return Number.isFinite(disp) && disp >= stageDisplay;
+  }
+
+  // daily counts for current year
+  const daily = new Array(365).fill(0);
+
+  for(const r of DOY_ROWS_CACHE){
+    if(r.y !== yNow) continue;
+    const idx = calIndex365(r.y, r.m, r.d);
+    if(idx === null) continue;
+
+    let add = 0;
+    if(Number.isFinite(r.highNavd)  && meetsStage(r.highNavd))  add += 1;
+    if(Number.isFinite(r.lowhiNavd) && meetsStage(r.lowhiNavd)) add += 1;
+
+    if(add) daily[idx] += add;
+  }
+
+  // cumulative, and null after today so it doesn’t draw “future flatline”
+  const ytd = new Array(365).fill(null);
+  let run = 0;
+  for(let i=0;i<365;i++){
+    run += daily[i];
+    ytd[i] = (i <= todayIdx) ? run : null;
+  }
+
+  return ytd;
+}
+
+/* -------------------------
+Render chart
+------------------------- */
+function renderDOYCumPanel(){
+  const meta   = document.getElementById("doyMeta");
+  const note   = document.getElementById("doyNote");
+  const canvas = document.getElementById("doyCumChart");
+  if(!canvas) return;
+
+  if(!DOY_CACHE){
+    if(meta) meta.textContent = "Loading daily stats…";
+    if(note) note.textContent = "";
+    return;
+  }
+
+  const { years, avg, min, max, stageLabel } = DOY_CACHE;
+
+  const { y: CUR_Y } = getESTParts(new Date());
+  const ytd = buildYTDSeriesFromDailyRows();
+
+  if(meta){
+    meta.textContent = `${years[0]}–${years[years.length-1]} · ${stageLabel}`;
+  }
+  if(note){
+    note.textContent = "";
+  }
+
+  const labels  = Array.from({length:365}, (_,i)=> i+1);
+  const mStarts = monthStarts365();
+  const mNames  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  // Build datasets as named vars so draw order is unambiguous:
+  const dsRangeMin = {
+    label: "_rangeMin",
+    data: min,
+    borderWidth: 0,
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    pointHitRadius: 0,
+    showLine: false,
+    order: 0
+  };
+
+  const dsRangeBand = {
+    label: "Historic Range (min–max)",
+    data: max,
+    borderWidth: 0,
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    pointHitRadius: 0,
+    fill: "-1",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    order: 1
+  };
+
+  // Average (green) — BELOW red
+  const dsAvg = {
+    label: "Average",
+    data: avg,
+    borderWidth: 2,
+    tension: 0.25,
+
+    borderColor: "rgba(45,212,191,.95)",
+    backgroundColor: "rgba(45,212,191,.95)",
+
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    pointHitRadius: 0,
+
+    pointStyle: "rectFilled",
+    pointBackgroundColor: "rgba(45,212,191,.95)",
+    pointBorderColor: "rgba(45,212,191,.95)",
+    pointBorderWidth: 0,
+
+    fill: false,
+    order: 10
+  };
+
+const dsCur = {
+  label: String(CUR_Y),
+  data: ytd || new Array(365).fill(null),
+
+  _drawLast: true,   //   ADD THIS
+
+  borderWidth: 5,
+  tension: 0.25,
+  borderColor: "#ef4444",
+  backgroundColor: "#ef4444",
+  pointRadius: 0,
+  pointHoverRadius: 0,
+  pointHitRadius: 0,
+  spanGaps: false,
+  fill: false,
+  order: 999
+};
+
+  //   Guaranteed draw order: band behind, green next, red last on top
+  const data = {
+    labels,
+    datasets: [dsRangeMin, dsRangeBand, dsAvg, dsCur]
+  };
+
+  const options = {
+    responsive:true,
+    maintainAspectRatio:false,
+    interaction:{mode:"index", intersect:false},
+
+    // kill hover dots globally
+    elements:{
+      point:{
+        radius:0,
+        hoverRadius:0,
+        hitRadius:0
+      }
+    },
+
+    plugins:{
+      legend:{
+        position:"bottom",
+        labels:{
+          color:"rgba(234,240,255,.88)",
+          font:{weight:"950"},
+          boxWidth:14,
+          usePointStyle:true,
+          filter:(legendItem, chartData)=>{
+            const label = chartData?.datasets?.[legendItem.datasetIndex]?.label || "";
+            return label !== "_rangeMin";
+          }
+        }
+      },
+      tooltip:{
+        callbacks:{
+          title:(items)=>{
+            const idx = items?.[0]?.dataIndex;
+            if(idx == null) return "";
+            return doyIndexToMonthDay(idx);
+          },
+          label:(ctx)=>{
+            const v = ctx.parsed?.y;
+            if(!Number.isFinite(v)) return null;
+
+            const want = new Set(["Average", String(CUR_Y)]);
+            if(!want.has(ctx.dataset.label)) return null;
+
+            return `${ctx.dataset.label}: ${Math.round(v*100)/100}`;
+          }
+        }
+      }
+    },
+
+    scales:{
+      x:{
+        ticks:{
+          color:"rgba(169,182,211,.9)",
+          autoSkip:false,
+          maxRotation:0,
+          callback:(value, index)=>{
+            const m = mStarts.indexOf(index);
+            return (m >= 0) ? mNames[m] : "";
+          }
+        },
+        grid:{display:false}
+      },
+      y:{
+        ticks:{color:"rgba(169,182,211,.9)"},
+        grid:{color:"rgba(255,255,255,.06)"}
+      }
+    }
+  };
+
+  if(doyCumChart) doyCumChart.destroy();
+  doyCumChart = new Chart(canvas.getContext("2d"), { type:"line", data, options });
+}
+/* -------------------------
+Init (one-time load)
+Call this once in boot(), NOT every 5 minutes.
+------------------------- */
+async function initDOYCumulativeFromAPI(){
+  DOY_CACHE = null;
+  renderDOYCumPanel(); // show "Loading..."
+
+  const rows = await fetchUSGSDailyStats_NAVD88({ start: DOY_START_ISO });
+  DOY_CACHE = computeDOYStatsFromDailyRows(rows);
+  renderDOYCumPanel();
+}
+
+/* -------------------------
+Datum toggle hook
+When DISPLAY_DATUM flips, recompute from cached rows? (fast path)
+Simplest: recompute from already-fetched rows by storing rows too.
+If you want that, add DOY_ROWS_CACHE below.
+------------------------- */
+
+// OPTIONAL FAST PATH (recommended):
+let DOY_ROWS_CACHE = null;
+
+async function initDOYCumulativeFromAPI_FAST(){
+  DOY_CACHE = null;
+  renderDOYCumPanel();
+
+  DOY_ROWS_CACHE = await fetchUSGSDailyStats_NAVD88({ start: DOY_START_ISO });
+  DOY_CACHE = computeDOYStatsFromDailyRows(DOY_ROWS_CACHE);
+  renderDOYCumPanel();
+}
+
+function refreshDOYAfterDatumToggle(){
+  if(!DOY_ROWS_CACHE) { renderDOYCumPanel(); return; }
+  DOY_CACHE = computeDOYStatsFromDailyRows(DOY_ROWS_CACHE);
+  renderDOYCumPanel();
+}
+
+/* =========================
+Historic filter from TXT
+========================= */
+async function hydrateHistoricFromTXT(){
+  // 1) Base history from TXT (NAVD88 daily “events”)
+  const txtEvents = (DAILY_EVENTS_NAVD||[]).map(e=>({
+    t:e.t, ft:e.ft, kind:e.kind, y:e.y, m:e.m, d:e.d,
+    source:"TXT"
+  }));
+
+  // 2) Live peaks from USGS since Jan 1 2026 (NAVD88)
+  let livePeaks = [];
+  try{
+    livePeaks = await buildLiveFloodPeaksSince2026();
+  }catch(e){
+    console.error("Live peaks build failed:", e);
+    livePeaks = [];
+  }
+
+  // 3) Combine
+  const combined = [...txtEvents, ...livePeaks];
+
+  // 4) De-duplicate by timestamp+height (prevents duplicates if anything overlaps)
+  const seen = new Set();
+  HIGH_TIDES_NAVD = combined.filter(r=>{
+    const key = `${r.t}|${Number(r.ft).toFixed(3)}`;
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // 5) Newest first for “recent”
+  HIGH_TIDES_NAVD.sort((a,b)=>new Date(b.t)-new Date(a.t));
+
+  // 6) Refresh UI pieces that depend on HIGH_TIDES_NAVD
+  applyFilter();
+  if(histMeta) histMeta.textContent = "";
+}
+
+
+function renderHist(rowsNavd){
+  histBody.innerHTML = "";
+
+  const LIMIT = 10;                      //   only show 10
+  const show = rowsNavd.slice(0, LIMIT);
+
+  for(const r of show){
+    const tag  = stageTagByNavd(r.ft);
+    const disp = toDisplayFtFromNavd(r.ft);
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${fmtNiceDate(r.t)}</td>
+      <td><b>${disp.toFixed(2)}</b></td>
+      <td><span class="tag"><span class="chip" style="background:${tag.c}"></span>${tag.txt}</span></td>
+    `;
+    histBody.appendChild(tr);
+  }
+
+  histMeta.textContent = `Showing ${Math.min(LIMIT, rowsNavd.length)} of ${rowsNavd.length.toLocaleString()}`;
+}
+
+function applyFilter(){
+    const help = document.getElementById("histHelp");
+  if(help) help.textContent = "Use any combination: Elevation range and/or Date range. Leave fields blank to ignore them.";
+
+  // NEW: range inputs (display datum)
+  const minDisplay = parseFloat(minElevEl.value);
+  const maxDisplay = parseFloat(maxElevEl.value);
+
+  // NEW: date inputs (YYYY-MM-DD) — inclusive
+  const fromStr = (fromDateEl?.value || "").trim();
+  const toStr   = (toDateEl?.value   || "").trim();
+
+  // Convert elev range -> NAVD ( data are NAVD)
+  const minNavd = Number.isFinite(minDisplay) ? fromDisplayToNavd(minDisplay) : -Infinity;
+  const maxNavd = Number.isFinite(maxDisplay) ? fromDisplayToNavd(maxDisplay) :  Infinity;
+
+  // Build date bounds in ms (inclusive). Using UTC parsing is fine since we compare ISO times.
+  const fromMs = fromStr ? new Date(fromStr + "T00:00:00Z").getTime() : -Infinity;
+  const toMs   = toStr   ? new Date(toStr   + "T23:59:59Z").getTime() :  Infinity;
+
+  const mode = sortModeEl.value;
+
+  let rows = HIGH_TIDES_NAVD.filter(r=>{
+    if(r.ft < minNavd || r.ft > maxNavd) return false;
+
+    const tMs = new Date(r.t).getTime();
+    if(!Number.isFinite(tMs)) return false;
+
+    if(tMs < fromMs || tMs > toMs) return false;
+
+    return true;
+  });
+
+  if(mode==="desc")   rows.sort((a,b)=>b.ft-a.ft);
+  if(mode==="asc")    rows.sort((a,b)=>a.ft-b.ft);
+  if(mode==="recent") rows.sort((a,b)=>new Date(b.t)-new Date(a.t));
+
+  renderHist(rows);
+}
+
+/* =========================
+Monthly averages
+========================= */
+function monthNameFromIndex(i){
+  const d = new Date(Date.UTC(2020, i-1, 15, 0, 0, 0));
+  return fmtMonthName.format(d);
+}
+
+function computeMonthlyAveragesFromEvents(eventsNavd){
+  const T = THRESH.NAVD88;
+  const byYearMonth = new Map();
+  const yearsSet = new Set();
+
+  for(const p of eventsNavd){
+    let y = p.y, m = p.m;
+    if(!y || !m){
+      const dt = new Date(p.t);
+      if(Number.isNaN(dt.getTime())) continue;
+      y = dt.getUTCFullYear();
+      m = dt.getUTCMonth()+1;
+    }
+    yearsSet.add(y);
+
+    const key = `${y}-${m}`;
+    if(!byYearMonth.has(key)){
+      byYearMonth.set(key,{year:y, month:m, total:0, minor:0, moderate:0, major:0});
+    }
+    const rec = byYearMonth.get(key);
+
+    if(p.ft >= T.minorLow){
+      rec.total++;
+      if(p.ft >= T.majorLow) rec.major++;
+      else if(p.ft >= T.moderateLow) rec.moderate++;
+      else rec.minor++;
+    }
+  }
+
+  const years = Array.from(yearsSet).sort((a,b)=>a-b);
+  const result = [];
+
+  for(let m=1;m<=12;m++){
+    const rowsForMonth=[];
+    for(const y of years){
+      const key = `${y}-${m}`;
+      rowsForMonth.push(byYearMonth.get(key) || {year:y, month:m, total:0, minor:0, moderate:0, major:0});
+    }
+    const n = rowsForMonth.length || 1;
+    const sum = rowsForMonth.reduce((acc,r)=>{
+      acc.total += r.total;
+      acc.minor += r.minor;
+      acc.moderate += r.moderate;
+      acc.major += r.major;
+      return acc;
+    },{total:0, minor:0, moderate:0, major:0});
+
+    result.push({
+      month:m,
+      avgTotal: sum.total / n,
+      avgMinor: sum.minor / n,
+      avgModerate: sum.moderate / n,
+      avgMajor: sum.major / n,
+      years:n
+    });
+  }
+  return result;
+}
+
+function renderMonthAveragesTable(monthStats){
+  monthAvgBody.innerHTML="";
+  for(const r of monthStats){
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td><b>${monthNameFromIndex(r.month)}</b></td>
+      <td>${r.avgTotal.toFixed(2)}</td>
+      <td>${r.avgMinor.toFixed(2)}</td>
+      <td>${r.avgModerate.toFixed(2)}</td>
+      <td>${r.avgMajor.toFixed(2)}</td>
+    `;
+    monthAvgBody.appendChild(tr);
+  }
+}
+
+function ensureMonthAvgChart(){
+  if(monthAvgChart) return;
+
+  monthAvgChart = new Chart($("monthAvgChart"),{
+    type:"bar",
+    data:{
+      labels:[],
+      datasets:[
+        {label:"Average Minor", data:[], stack:"m", borderWidth:0, backgroundColor:"rgba(251,191,36,.85)"},
+        {label:"Average Moderate", data:[], stack:"m", borderWidth:0, backgroundColor:"rgba(251,113,133,.80)"},
+        {label:"Average Major", data:[], stack:"m", borderWidth:0, backgroundColor:"rgba(167,139,250,.80)"}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+
+      interaction:{ mode:"index", intersect:false },
+
+      plugins:{
+        legend:{
+          position:"bottom",
+          labels:{color:"rgba(234,240,255,.88)",font:{weight:"950"},boxWidth:16}
+        },
+
+        tooltip:{
+          mode:"index",
+          intersect:false,
+          callbacks:{
+            title:(items)=> items?.[0]?.label ?? "",
+            label:(ctx)=>{
+              const v = ctx.parsed?.y;
+              if(!Number.isFinite(v)) return null;
+              return `${ctx.dataset.label}: ${v.toFixed(2)}`;
+            },
+            footer:(items)=>{
+              const total = (items || [])
+                .filter(it => it.dataset.type !== "line")
+                .reduce((sum,it)=>{
+                  const v = it.parsed?.y;
+                  return sum + (Number.isFinite(v) ? v : 0);
+                },0);
+
+              return `Total: ${Math.round(total)}`;
+            }
+          }
+        }
+      },
+
+      scales:{
+        x:{
+          stacked:true,
+          ticks:{color:"rgba(169,182,211,.9)"},
+          grid:{color:"rgba(255,255,255,.06)"}
+        },
+
+        // ⭐ FIX: force hundredths on y-axis
+        y:{
+          stacked:true,
+          ticks:{
+            color:"rgba(169,182,211,.9)",
+
+            // 👇 THIS controls axis numbers
+            callback:(value)=> Number(value).toFixed(2)
+          },
+          grid:{color:"rgba(255,255,255,.06)"}
+        }
+      }
+    }
+  });
+}
+
+function renderMonthAveragesChart(monthStats){
+  ensureMonthAvgChart();
+  monthAvgChart.data.labels = monthStats.map(r=>monthNameFromIndex(r.month));
+  monthAvgChart.data.datasets[0].data = monthStats.map(r=>r.avgMinor);
+  monthAvgChart.data.datasets[1].data = monthStats.map(r=>r.avgModerate);
+  monthAvgChart.data.datasets[2].data = monthStats.map(r=>r.avgMajor);
+  monthAvgChart.update();
+    applyMonthView();
+}
+
+function updateMonthAveragesFromHistory(){
+  if(!HIGH_TIDES_NAVD.length){
+    monthAvgMeta.textContent = "";
+    const zeros = Array.from({length:12},(_,i)=>({
+      month:i+1, avgTotal:0, avgMinor:0, avgModerate:0, avgMajor:0, years:0
+    }));
+    renderMonthAveragesTable(zeros);
+    renderMonthAveragesChart(zeros);
+    return;
+  }
+
+  const stats = computeMonthlyAveragesFromEvents(HIGH_TIDES_NAVD);
+  monthAvgMeta.textContent = "";
+  renderMonthAveragesTable(stats);
+  renderMonthAveragesChart(stats);
+}
+
+
+/* =========================
+LIVE: current conditions + daily range + overwrite current year bar
+========================= */
+async function updateLiveAndAnnualCounts(){
+  // Build completed-year bars from whatever history is currently loaded
+  buildAnnualArraysFromHistory_completedYears();
+  renderAnnual();
+
+  // ---- Live observed series YTD (NAVD88) ----
+  const { y: curYear } = getESTParts(new Date());
+  const startISO = startOfYearEST_ISO(curYear);
+  const endISO   = nowISO();
+
+  const ytd = await fetchObservedSeries({ startISO, endISO });
+  if(!ytd.length) throw new Error("no live water-level data returned from USGS");
+
+  STATE.ytdNavd  = ytd;
+  STATE.lastNavd = ytd[ytd.length - 1];
+
+  // ---- Current water level card ----
+  curFtEl.textContent = toDisplayFtFromNavd(STATE.lastNavd.ft).toFixed(2);
+  curMetaEl.textContent = "Updated: " + fmtESTFull(STATE.lastNavd.t);
+  lastPill.textContent  = "Last updated: " + fmtESTFull(STATE.lastNavd.t);
+  setStage(STATE.lastNavd.ft);
+
+  // ---- Daily range (today) ----
+// ---- Daily range (today) ----
+const today = sliceAfter(ytd, startOfTodayLocalTZ_ISO());
+STATE.todayNavd = today;
+  if(dailyRangeDateEl){
+  dailyRangeDateEl.textContent = fmtNiceDate(startOfTodayLocalTZ_ISO());
+}
+
+
+if(today.length){
+  const dmx = maxPoint(today), dmn = minPoint(today);
+
+  dayMaxFtEl.textContent = toDisplayFtFromNavd(dmx.ft).toFixed(2);
+  dayMinFtEl.textContent = toDisplayFtFromNavd(dmn.ft).toFixed(2);
+
+  //   ONLY show the time under each number (EST)
+  if(dayMaxWhenEl) dayMaxWhenEl.textContent = fmtESTTime(dmx.t);
+  if(dayMinWhenEl) dayMinWhenEl.textContent = fmtESTTime(dmn.t);
+
+  //   optional: blank the long meta line so it doesn't “fight” the clean layout
+  if(dayRangeMeta) dayRangeMeta.textContent = "";
+}else{
+  dayMaxFtEl.textContent = "—";
+  dayMinFtEl.textContent = "—";
+  if(dayMaxWhenEl) dayMaxWhenEl.textContent = "—";
+  if(dayMinWhenEl) dayMinWhenEl.textContent = "—";
+  if(dayRangeMeta) dayRangeMeta.textContent = "";
+}
+
+
+
+  // ---- Current-year flooding bar: history-based (peaks list) ----
+  // NOTE: requires HIGH_TIDES_NAVD already loaded (JSON/TXT init)
+  const counts = countEventsFromHistoryForYear(curYear);
+  overwriteCurrentYearBarWithLiveCounts(counts);
+  renderAnnual();
+}
+
+/* =========================
+Timeseries update (observed + predictions)
+- Observed: last 24h
+- Predictions: 72h starting at next 15-min tick after last observation
+========================= */
+async function updateTimeseries(){
+  const end = new Date();
+  const start = new Date(end.getTime() - 24*3600*1000);
+
+  // Observed: last 24h (NAVD88)
+  const obs = await fetchObservedSeries({
+    startISO: start.toISOString(),
+    endISO: end.toISOString()
+  });
+  STATE.obs24Navd = obs || [];
+
+// Forecast: PETSS (MLLW)
+try {
+  const { issuedTime, points } = await fetchPETSSForecast_MLLW({ hours: 72 });
+  STATE.pred72Mllw = points || [];
+
+  // 🔕 no message shown under chart
+  if (fcNote) fcNote.textContent = "";
+
+} catch (e) {
+  console.error("PETSS forecast failed:", e);
+  STATE.pred72Mllw = [];
+
+  // 🔕 still show nothing even if PETSS fails
+  if (fcNote) fcNote.textContent = "";
+}
+
+
+  //   IMPORTANT: actually render the chart + 24h range card after STATE updates
+  updateTsChartFromState();
+  updatePred24RangeCard();
+  updateFloodOutlook48();
+}
+
+
+
+/* =========================
+JSON-BACKED HISTORY (NAVD88 PEAKS)
+========================= */
+
+const PEAKS_JSON_FILE = "peaks_navd88.json";
+const PEAKS_JSON_PATH_CANDIDATES = [
+  `data/${PEAKS_JSON_FILE}`,
+  `./data/${PEAKS_JSON_FILE}`,
+  `../data/${PEAKS_JSON_FILE}`,
+  `/data/${PEAKS_JSON_FILE}`
+];
+
+let PEAKS_JSON_URL = PEAKS_JSON_PATH_CANDIDATES[0];
+
+async function resolvePeaksJsonUrl(){
+  const errs = [];
+  for(const u of PEAKS_JSON_PATH_CANDIDATES){
+    try{
+      const res = await fetch(`${u}?v=${Date.now()}`, { cache:"no-store" });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      PEAKS_JSON_URL = u;
+      return { url:u, json };
+    }catch(e){
+      errs.push(`${u} (${e?.message || e})`);
+    }
+  }
+  throw new Error("Could not load peaks JSON. Tried: " + errs.join(" | "));
+}
+
+function normalizePeaksJson(json){
+  const arr =
+    Array.isArray(json) ? json :
+    Array.isArray(json?.events) ? json.events :
+    Array.isArray(json?.peaks) ? json.peaks :
+    Array.isArray(json?.data) ? json.data :
+    [];
+
+  const out = [];
+  for(const r of arr){
+    const tRaw = r?.t ?? r?.time ?? r?.timestamp ?? r?.datetime ?? r?.dateTime ?? null;
+    const ftRaw = r?.ft ?? r?.value ?? r?.height ?? r?.navd88 ?? r?.navd ?? null;
+
+    if(!tRaw) continue;
+
+    const dt = new Date(tRaw);
+    if(Number.isNaN(dt.getTime())) continue;
+
+    const ft = Number(ftRaw);
+    if(!Number.isFinite(ft)) continue;
+
+    // Derive y/m/d if missing ( monthly stats like having these)
+    const y = r?.y ?? r?.year ?? dt.getUTCFullYear();
+    const m = r?.m ?? r?.month ?? (dt.getUTCMonth() + 1);
+    const d = r?.d ?? r?.day ?? dt.getUTCDate();
+
+    out.push({
+      t: dt.toISOString(),
+      ft,
+      y, m, d,
+      kind: r?.kind ?? r?.type ?? "Peak",
+      source: "JSON"
+    });
+  }
+  return out;
+}
+
+async function initJSONBackedHistory(){
+  const { json } = await resolvePeaksJsonUrl();
+  const peaks = normalizePeaksJson(json); // NAVD88
+
+  // Only build live peaks if JSON does NOT already contain 2026+
+  const has2026Plus = peaks.some(e => {
+    const y = new Date(e.t).getUTCFullYear();
+    return Number.isFinite(y) && y >= 2026;
+  });
+
+  let livePeaks = [];
+  if(!has2026Plus){
+    try{
+      livePeaks = await buildLiveFloodPeaksSince2026();
+    }catch(e){
+      console.error("Live peaks build failed:", e);
+      livePeaks = [];
+    }
+  }
+
+  // Combine (may contain overlaps)
+  const combined = [...peaks, ...livePeaks];
+
+  /* --- HARD DEDUPE: keep max per (EST day + tide-cycle bucket) --- */
+  function estParts(iso){
+    const p = fmtPartsYMD.formatToParts(new Date(iso)); // TZ = Etc/GMT+5
+    return {
+      y: p.find(x=>x.type==="year")?.value,
+      m: p.find(x=>x.type==="month")?.value,
+      d: p.find(x=>x.type==="day")?.value
+    };
+  }
+
+  function estHour(iso){
+    const dt = new Date(iso);
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: TZ,
+      hour: "2-digit",
+      hour12: false
+    }).formatToParts(dt);
+    return +(parts.find(x=>x.type==="hour")?.value || "0");
+  }
+
+  function tideBucket(iso){
+    return estHour(iso) < 12 ? "AM" : "PM";
+  }
+
+  const bestByKey = new Map();
+
+  for(const e of combined){
+    const dt = new Date(e.t);
+    if(Number.isNaN(dt.getTime())) continue;
+
+    const ft = Number(e.ft);
+    if(!Number.isFinite(ft)) continue;
+
+    const {y,m,d} = estParts(e.t);
+    if(!y || !m || !d) continue;
+
+    const key = `${y}-${m}-${d}|${tideBucket(e.t)}`;
+
+    const prev = bestByKey.get(key);
+    if(!prev || ft > prev.ft){
+      bestByKey.set(key, e);
+    }
+  }
+
+  HIGH_TIDES_NAVD = Array.from(bestByKey.values());
+
+  // Newest first
+  HIGH_TIDES_NAVD.sort((a,b)=>new Date(b.t)-new Date(a.t));
+
+  // Refresh UI that depends on HIGH_TIDES_NAVD
+  applyFilter();
+  updateMonthAveragesFromHistory();
+  buildAnnualArraysFromHistory_completedYears();
+  renderAnnual();
+
+  if(histMeta) histMeta.textContent = "";
+  if(monthAvgMeta) monthAvgMeta.textContent = "";
+}
+
+
+
+async function initTXTBackedHistory(){
+  await loadDailyTidesFromTXT();
+  await hydrateHistoricFromTXT();
+  updateMonthAveragesFromHistory();
+  buildAnnualArraysFromHistory_completedYears();
+  renderAnnual();
+}
+
+      function countEventsFromHistoryForYear(year){
+  const T = THRESH.NAVD88;
+  let minor=0, moderate=0, major=0;
+
+  for(const e of (HIGH_TIDES_NAVD || [])){
+    const tMs = new Date(e.t).getTime();
+    if(!Number.isFinite(tMs)) continue;
+
+    // Use EST year consistency ( UI logic is EST-based)
+    const { y } = getESTParts(new Date(e.t));
+    if(y !== year) continue;
+
+    const ft = +e.ft;
+    if(!Number.isFinite(ft)) continue;
+
+    if(ft >= T.majorLow) major++;
+    else if(ft >= T.moderateLow) moderate++;
+    else if(ft >= T.minorLow) minor++;
+  }
+  return { minor, moderate, major };
+}
+
+
+
+
+/* =========================
+Boot
+========================= */
+/* =========================
+Boot
+========================= */
+
+      // Build datum dropdown options (obvious + matches DATUMS order)
+  if(datumSelect){
+    datumSelect.innerHTML = DATUMS.map(d => `<option value="${d}">${d}</option>`).join("");
+    datumSelect.value = DISPLAY_DATUM;
+  }
+
+async function boot(){
+  updateUnitsAndBadges();
+  renderTopTen();
+
+    hookMonthViewSwitch();
+  hookAnnualViewSwitch();
+
+
+    // Map accordion hook (runs once)
+  hookGaugeMapAccordion();
+
+  // If map accordion is already open for some reason, init immediately
+  const mapAcc = document.getElementById("mapAcc");
+  if(mapAcc && mapAcc.open){
+    ensureGaugeMap();
+  }
+
+
+  // Alerts can run independently
+ await Promise.allSettled([ initDOYCumulativeFromAPI_FAST() ]);
+
+await Promise.allSettled([ updateAlerts() ]);
+
+
+ // 1) Must load history first (HIGH_TIDES_NAVD)
+const hist = await Promise.allSettled([
+  initJSONBackedHistory() /* or initTXTBackedHistory() */
+]);
+
+if (hist[0].status === "rejected") {
+  console.error("History init failed:", hist[0].reason);
+  if (histMeta)      histMeta.textContent = "History load failed. Check /data/peaks_navd88.json.";
+  if (monthAvgMeta)  monthAvgMeta.textContent = "History load failed (monthly averages unavailable).";
+}
+
+//   NEW: DOY cumulative panel (daily stats from USGS API; no TXT)
+
+
+
+
+  // 2) Live counts rely on history for current-year bar overwrite
+  const live = await Promise.allSettled([ updateLiveAndAnnualCounts() ]);
+  if(live[0].status === "rejected"){
+    console.error("Live init failed:", live[0].reason);
+    stageTextEl.textContent="LIVE DATA UNAVAILABLE";
+    lastPill.textContent="Last updated: —";
+    curFtEl.textContent="—";
+    curMetaEl.textContent="Updated: —";
+  }
+
+  // 3) Timeseries does not depend on history
+  await Promise.allSettled([ updateTimeseries() ]);
+}
+
+
+/* =========================
+Controls
+========================= */
+const applyBtn = $("applyBtn");
+if(applyBtn) applyBtn.addEventListener("click", applyFilter);
+
+const resetBtn = $("resetBtn");
+if(resetBtn) resetBtn.addEventListener("click", ()=>{
+  minElevEl.value = THRESH[DISPLAY_DATUM].minorLow.toFixed(2);
+  maxElevEl.value = "";
+  if(fromDateEl) fromDateEl.value = "";
+  if(toDateEl)   toDateEl.value = "";
+  sortModeEl.value = "desc";
+  applyFilter();
+});
+
+if(datumSelect) datumSelect.addEventListener("change", ()=>{
+  setDatum(datumSelect.value);
+});
+
+
+function setDatum(newDatum){
+  if(!DATUMS.includes(newDatum)) return;
+
+  const oldDatum = DISPLAY_DATUM;
+
+  // Read current filter inputs (old datum)
+  const vMin = parseFloat(minElevEl.value);
+  const vMax = parseFloat(maxElevEl.value);
+
+  // Convert current input values OLD -> NAVD (stable internal)
+  const navdMin = Number.isFinite(vMin) ? datumToDatum(vMin, oldDatum, "NAVD88") : null;
+  const navdMax = Number.isFinite(vMax) ? datumToDatum(vMax, oldDatum, "NAVD88") : null;
+
+  // Switch datum
+  DISPLAY_DATUM = newDatum;
+
+  // Update dropdown + button text immediately
+  if(datumSelect) datumSelect.value = DISPLAY_DATUM;
+
+  // Convert NAVD -> NEW datum for showing in the boxes
+  const newMin = (navdMin === null) ? null : datumToDatum(navdMin, "NAVD88", DISPLAY_DATUM);
+  const newMax = (navdMax === null) ? null : datumToDatum(navdMax, "NAVD88", DISPLAY_DATUM);
+
+  minElevEl.value = (newMin === null)
+    ? THRESH[DISPLAY_DATUM].minorLow.toFixed(2)
+    : newMin.toFixed(2);
+
+  maxElevEl.value = (newMax === null) ? "" : newMax.toFixed(2);
+
+  // Recompute DOY + YTD in new datum (you already built this)
+  refreshDOYAfterDatumToggle();
+
+  // Refresh everything that depends on DISPLAY_DATUM
+  updateUnitsAndBadges();
+  renderTopTen();
+  applyFilter();
+  updateMonthAveragesFromHistory();
+  renderAnnual();
+
+  // Live card refresh (STATE.lastNavd is NAVD)
+  if(STATE.lastNavd){
+    curFtEl.textContent = toDisplayFtFromNavd(STATE.lastNavd.ft).toFixed(2);
+    setStage(STATE.lastNavd.ft); // stage classification is NAVD-based (fine)
+  }
+
+// Daily range refresh
+if(STATE.todayNavd && STATE.todayNavd.length){
+  const dmx = maxPoint(STATE.todayNavd), dmn = minPoint(STATE.todayNavd);
+  dayMaxFtEl.textContent = toDisplayFtFromNavd(dmx.ft).toFixed(2);
+  dayMinFtEl.textContent = toDisplayFtFromNavd(dmn.ft).toFixed(2);
+
+  if(dayMaxWhenEl) dayMaxWhenEl.textContent = fmtESTTime(dmx.t);
+  if(dayMinWhenEl) dayMinWhenEl.textContent = fmtESTTime(dmn.t);
+} else {
+  dayMaxFtEl.textContent = "—";
+  dayMinFtEl.textContent = "—";
+  if(dayMaxWhenEl) dayMaxWhenEl.textContent = "—";
+  if(dayMinWhenEl) dayMinWhenEl.textContent = "—";
+}
+
+
+  // Charts that depend on display datum
+  updatePred24RangeCard();
+  updateTsChartFromState();
+  updateFloodOutlook48();
+}
+
+
+// Dropdown jumps directly
+datumSelect.addEventListener("change", ()=>{
+  setDatum(datumSelect.value);
+});
+
+
+
+
+/* Start */
+boot().catch(err=>{
+  console.error(err);
+  stageTextEl.textContent="LIVE DATA UNAVAILABLE";
+  lastPill.textContent="Last updated: —";
+});
+
+/* Auto-refresh (LIVE only — don’t reload TXT every time) */
+setInterval(async ()=>{
+  try{
+    await Promise.allSettled([
+      updateAlerts(),
+      updateLiveAndAnnualCounts(),
+      updateTimeseries()
+    ]);
+  }catch(e){
+    console.error(e);
+  }
+}, 5*60*1000);
+
+    
+
+    </script>
+</body>
+</html>
