@@ -1,297 +1,408 @@
 #!/usr/bin/env node
 /**
- * Update PETSS forecast (ensemble mean) from NOMADS PETSS production tarballs.
+ * Crest-anchored NAVD88 "high tide events" builder for USGS 01412150 (param 72279)
+ * - Uses NOAA CO-OPS predicted HIGH tide crest times (interval=hilo, type=H) as the "tide clock"
+ * - For each predicted HIGH tide crest:
+ *    - Search observed USGS IV points within ±2 hours and take the MAX
+ *    - BUT: if there are ZERO observed points within ±1 hour of the crest, SKIP that crest entirely
  *
- * Outputs:
- *  - data/petss_forecast.csv   (time_utc_iso, twl_ft_mllw, tide_ft_mllw, surge_ft, src_time)
- *  - data/petss_forecast.json  ([{ t: "...Z", twl, tide, surge }...])
- *  - data/petss_meta.json      ({ stid, datum, run_dir, cycle, source_url, updated_utc, n_points })
+ * Writes to: data/peaks_navd88.json
  *
- * Env:
- *  - PETSS_STID  (required) e.g. "8531804"
- *  - PETSS_DATUM (optional; metadata only) e.g. "MLLW"
+ * Modes:
+ *   node tools/update_peaks_navd88.js
+ *     -> incremental update from lastProcessedISO (with buffer) to now
+ *
+ *   node tools/update_peaks_navd88.js --backfill-year=2000
+ *     -> backfill exactly that calendar year (UTC)
+ *
+ *   node tools/update_peaks_navd88.js --backfill-from=2000 --backfill-to=2026
+ *     -> backfill inclusive year range (UTC)
  */
-
-"use strict";
 
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
-const https = require("https");
-const { execSync } = require("child_process");
 
-const BASE = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/";
+// -------------------------
+// Config (matches your dashboard)
+// -------------------------
+const CACHE_PATH = path.join(__dirname, "..", "data", "peaks_navd88.json");
 
-function log(...a) { console.log(...a); }
-function die(msg, err) {
+const SITE = "01407600";
+const PARAM = "72279";
+
+// NOAA tide-clock (predicted highs/lows) — used ONLY for crest times
+const NOAA_STATION = "8531804"; // , Maurice River, NJ (as in your dashboard)
+
+// Keep this in cache for transparency; we still keep your 5-hour constant in JSON,
+// but we are no longer using declustering for cache building under this method.
+const PEAK_MIN_SEP_MINUTES = 300;
+
+// Incremental overlap so boundary crests don't get missed
+const BUFFER_HOURS = 12;
+
+// Crest anchoring rules (your request)
+const CREST_WINDOW_HOURS = 2;      // search max within ±2h of predicted crest
+const REQUIRE_WITHIN_HOURS = 1;    // if NO obs points within ±1h, skip that crest entirely
+
+// Method/version tag so you can cleanly rebuild without mixing old scheme
+const METHOD = "crest_anchored_highs_v1";
+
+// -------------------------
+// Helpers
+// -------------------------
+function die(msg) {
   console.error(msg);
-  if (err) console.error(err.stack || err);
   process.exit(1);
 }
 
-function ensureDir(p) {
-  fs.mkdirSync(p, { recursive: true });
+function loadJSON(p) {
+  if (!fs.existsSync(p)) die(`Missing cache file: ${p}`);
+  return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
-function fetchText(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers: { "User-Agent": "petss-forecast-updater" } }, (res) => {
-      // handle redirects
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return resolve(fetchText(res.headers.location));
-      }
-      if (res.statusCode !== 200) {
-        return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-      }
-      let data = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => resolve(data));
-    }).on("error", reject);
-  });
+function saveJSON(p, obj) {
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2) + "\n", "utf8");
 }
 
-function downloadFile(url, outPath) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(outPath);
-    https.get(url, { headers: { "User-Agent": "petss-forecast-updater" } }, (res) => {
-      // redirects
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        file.close(() => fs.unlinkSync(outPath));
-        return resolve(downloadFile(res.headers.location, outPath));
-      }
-      if (res.statusCode !== 200) {
-        file.close(() => fs.unlinkSync(outPath));
-        return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
-      }
-      res.pipe(file);
-      file.on("finish", () => file.close(resolve));
-    }).on("error", (err) => {
-      try { file.close(() => fs.unlinkSync(outPath)); } catch (_) {}
-      reject(err);
-    });
-  });
+function isoNow() {
+  return new Date().toISOString();
 }
 
-function listLatestProdDir(html) {
-  // Expect directory names like petss.20260131/
-  const re = /petss\.(\d{8})\/?/g;
-  const dates = [];
-  let m;
-  while ((m = re.exec(html)) !== null) dates.push(m[1]);
-  if (!dates.length) throw new Error("Could not find petss.YYYYMMDD directories in NOMADS listing.");
-  dates.sort(); // ascending
-  const latest = dates[dates.length - 1];
-  return `petss.${latest}/`;
+function addHoursISO(iso, hours) {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return new Date(t + hours * 3600 * 1000).toISOString();
 }
 
-function chooseCycleTarball(html) {
-  // Prefer t18z, then t12z, t06z, t00z. We want the station CSV tarball.
-  const preferred = ["t18z", "t12z", "t06z", "t00z"];
-  for (const cyc of preferred) {
-    const name = `petss.${cyc}.csv.tar.gz`;
-    if (html.includes(name)) return name;
+function clampISO(iso) {
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+function parseArg(name) {
+  const a = process.argv.find(x => x.startsWith(name + "="));
+  return a ? a.split("=").slice(1).join("=") : null;
+}
+
+function roundFt(x) {
+  return Math.round(x * 1000) / 1000;
+}
+
+function yyyymmddUTC(d) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+function addDaysUTC(d, days) {
+  return new Date(d.getTime() + days * 86400 * 1000);
+}
+
+function startOfUTCDate(d) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0));
+}
+
+function parseNOAATimeToISO_UTC(t) {
+  // NOAA predictions return "YYYY-MM-DD HH:MM" (no timezone)
+  // We request time_zone=gmt so interpret as UTC and append Z.
+  // Example: "2026-01-28 14:12" -> "2026-01-28T14:12:00Z"
+  return t.replace(" ", "T") + ":00Z";
+}
+
+function classifyNAVD(ft, T) {
+  let type = "Below";
+  if (ft >= T.majorLow) type = "Major";
+  else if (ft >= T.moderateLow) type = "Moderate";
+  else if (ft >= T.minorLow) type = "Minor";
+  return type;
+}
+
+// -------------------------
+// USGS IV fetch (15-min-ish)
+// -------------------------
+async function fetchUSGSIV({ startISO, endISO }) {
+  const url =
+    "https://waterservices.usgs.gov/nwis/iv/?" +
+    new URLSearchParams({
+      format: "json",
+      sites: SITE,
+      parameterCd: PARAM,
+      startDT: startISO,
+      endDT: endISO,
+      siteStatus: "all",
+      agencyCd: "USGS"
+    }).toString();
+
+  const res = await fetch(url, { headers: { "User-Agent": "peaks-cache/2.0" } });
+  if (!res.ok) throw new Error(`USGS IV fetch failed: ${res.status} ${res.statusText}`);
+  const j = await res.json();
+
+  const ts = j?.value?.timeSeries?.[0];
+  const vals = ts?.values?.[0]?.value || [];
+
+  const series = vals
+    .map(v => ({ t: v.dateTime, ft: Number(v.value) }))
+    .filter(p => p.t && Number.isFinite(p.ft));
+
+  series.sort((a, b) => new Date(a.t) - new Date(b.t));
+  return series;
+}
+
+// -------------------------
+// NOAA "hilo" predictions fetch (chunked)
+// -------------------------
+async function fetchNOAAHiloPredictionsHighs({ startISO, endISO }) {
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new Error("Invalid startISO/endISO for NOAA predictions.");
   }
-  // Fallback: pick ANY petss.t??z.csv.tar.gz
-  const m = html.match(/petss\.t\d{2}z\.csv\.tar\.gz/g);
-  if (m && m.length) return m.sort().pop();
-  throw new Error("Could not find any petss.t??z.csv.tar.gz tarball in run dir listing.");
-}
 
-function findFileRecursive(rootDir, filename) {
-  const stack = [rootDir];
-  while (stack.length) {
-    const d = stack.pop();
-    const ents = fs.readdirSync(d, { withFileTypes: true });
-    for (const e of ents) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) stack.push(p);
-      else if (e.isFile() && e.name === filename) return p;
+  // NOAA is generally happier with ~31-day windows. We'll chunk 30 days.
+  const highs = [];
+  let cur = startOfUTCDate(start);
+  const endDay = startOfUTCDate(end);
+
+  while (cur <= endDay) {
+    const chunkEnd = addDaysUTC(cur, 30);
+    const actualEnd = chunkEnd < endDay ? chunkEnd : endDay;
+
+    const url =
+      "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?" +
+      new URLSearchParams({
+        product: "predictions",
+        application: "peaks-cache",
+        format: "json",
+        station: NOAA_STATION,
+        time_zone: "gmt",
+        units: "english",
+        interval: "hilo",
+        datum: "MLLW", // required by NOAA; crest TIMES are what we care about
+        begin_date: yyyymmddUTC(cur),
+        end_date: yyyymmddUTC(actualEnd)
+      }).toString();
+
+    const res = await fetch(url, { headers: { "User-Agent": "peaks-cache/2.0" } });
+    if (!res.ok) throw new Error(`NOAA predictions fetch failed: ${res.status} ${res.statusText}`);
+
+    const j = await res.json();
+    const arr = Array.isArray(j?.predictions) ? j.predictions : [];
+
+    for (const p of arr) {
+      if (p?.type !== "H") continue; // highs only
+      const iso = parseNOAATimeToISO_UTC(p.t);
+      const ms = new Date(iso).getTime();
+      if (!Number.isFinite(ms)) continue;
+      highs.push({ t: new Date(ms).toISOString() });
     }
+
+    cur = addDaysUTC(actualEnd, 1);
   }
-  return null;
+
+  highs.sort((a, b) => new Date(a.t) - new Date(b.t));
+  return highs;
 }
 
-function parseNomadsStationCsv(text, stid) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+// -------------------------
+// Crest-anchored event builder
+// -------------------------
+function buildCrestAnchoredHighEvents({ series, predictedHighs, thresholdsNAVD88 }) {
+  if (!Array.isArray(series) || !series.length) return [];
+  if (!Array.isArray(predictedHighs) || !predictedHighs.length) return [];
 
-  // Find header line containing TIME and TWL
-  let headerIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const h = lines[i].trim();
-    if (h.toUpperCase().includes("TIME") && h.toUpperCase().includes("TWL")) {
-      headerIdx = i;
-      break;
+  const w2 = CREST_WINDOW_HOURS * 3600 * 1000;
+  const w1 = REQUIRE_WITHIN_HOURS * 3600 * 1000;
+
+  const pts = [...series].sort((a, b) => new Date(a.t) - new Date(b.t));
+
+  const out = [];
+  let left = 0;
+
+  for (const h of predictedHighs) {
+    const crestISO = h.t;
+    const crestMs = new Date(crestISO).getTime();
+    if (!Number.isFinite(crestMs)) continue;
+
+    // Advance left pointer to first point >= crest - 2h
+    while (left < pts.length) {
+      const tMs = new Date(pts[left].t).getTime();
+      if (!Number.isFinite(tMs) || tMs < crestMs - w2) left++;
+      else break;
     }
-  }
-  if (headerIdx === -1) {
-    throw new Error(`Could not find NOMADS header row with TIME/TWL for STID=${stid}`);
-  }
 
-  const header = lines[headerIdx].split(",").map((s) => s.trim().toUpperCase());
-  const idxTIME = header.indexOf("TIME");
-  const idxTWL = header.indexOf("TWL");
-  const idxTIDE = header.indexOf("TIDE");
-  const idxSURGE = header.indexOf("SURGE");
+    let i = left;
+    let hasWithin1h = false;
+    let best = null;
 
-  if (idxTIME === -1 || idxTWL === -1) {
-    throw new Error(`Header missing TIME or TWL for STID=${stid}. Header=${header.join("|")}`);
-  }
+    while (i < pts.length) {
+      const tMs = new Date(pts[i].t).getTime();
+      if (!Number.isFinite(tMs)) { i++; continue; }
+      if (tMs > crestMs + w2) break;
 
-  function parseNum(s) {
-    const v = Number(String(s).trim());
-    if (!Number.isFinite(v)) return null;
-    // NOMADS uses 9999.000 as missing
-    if (Math.abs(v - 9999) < 1e-6) return null;
-    return v;
-  }
+      const dt = Math.abs(tMs - crestMs);
+      if (dt <= w1) hasWithin1h = true;
 
-  function parseTimeYYYYMMDDHHMM(s) {
-    const t = String(s).trim();
-    // Expect 12 digits: YYYYMMDDHHMM
-    if (!/^\d{12}$/.test(t)) return null;
-    const Y = Number(t.slice(0, 4));
-    const M = Number(t.slice(4, 6));
-    const D = Number(t.slice(6, 8));
-    const h = Number(t.slice(8, 10));
-    const m = Number(t.slice(10, 12));
-    // UTC Date
-    const dt = new Date(Date.UTC(Y, M - 1, D, h, m, 0));
-    if (Number.isNaN(dt.getTime())) return null;
-    return dt;
-  }
+      if (!best || pts[i].ft > best.ft) best = pts[i];
+      i++;
+    }
 
-  const rows = [];
-  for (let i = headerIdx + 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    // skip separators or junk
-    if (!/^\d{12}\s*,/.test(line)) continue;
+    // Your rule: if we do not have ANY observed values within ±1h, do not report anything
+    if (!hasWithin1h) continue;
+    if (!best) continue;
 
-    const parts = line.split(",").map((s) => s.trim());
-    const dt = parseTimeYYYYMMDDHHMM(parts[idxTIME]);
-    if (!dt) continue;
-
-    const tide = idxTIDE >= 0 ? parseNum(parts[idxTIDE]) : null;
-    const surge = idxSURGE >= 0 ? parseNum(parts[idxSURGE]) : null;
-    const twl = parseNum(parts[idxTWL]);
-
-    // Ensemble mean TWL is TWL when present; fallback to tide+surge if TWL missing but both exist
-    const twlBest =
-      twl != null ? twl :
-      (tide != null && surge != null ? (tide + surge) : null);
-
-    // For plotting: keep only points with a usable ensemble mean
-    if (twlBest == null) continue;
-
-    rows.push({
-      t: dt.toISOString(),
-      twl: Number(twlBest.toFixed(3)),
-      tide: tide != null ? Number(tide.toFixed(3)) : null,
-      surge: surge != null ? Number(surge.toFixed(3)) : null,
-      src_time: String(parts[idxTIME]).trim()
+    const ft = Number(best.ft);
+    out.push({
+      t: new Date(best.t).toISOString(),     // observed time of window max
+      ft: roundFt(ft),
+      type: classifyNAVD(ft, thresholdsNAVD88),
+      crest: new Date(crestISO).toISOString(), // predicted crest time (key)
+      kind: "CrestHigh"
     });
   }
 
-  if (!rows.length) {
-    throw new Error(
-      `Parsed 0 usable rows (no valid TWL or TIDE+SURGE). ` +
-      `This can happen if the file is mostly 9999 missing values.`
+  return out;
+}
+
+// -------------------------
+// Main update logic
+// -------------------------
+async function main() {
+  const cache = loadJSON(CACHE_PATH);
+
+  // Ensure required metadata exists (you already store these)
+  cache.site = cache.site || SITE;
+  cache.parameterCd = cache.parameterCd || PARAM;
+  cache.datum = cache.datum || "NAVD88";
+  cache.peakMinSepMinutes = cache.peakMinSepMinutes || PEAK_MIN_SEP_MINUTES;
+
+  const THRESH_NAVD88 = cache?.thresholdsNAVD88 || null;
+  if (!THRESH_NAVD88) {
+    die(
+      "Missing NAVD88 thresholds. Add thresholdsNAVD88 to data/peaks_navd88.json, e.g.\n" +
+      '  "thresholdsNAVD88": {"minorLow": 4.19, "moderateLow": 5.19, "majorLow": 6.19}\n'
     );
   }
 
-  // Sort time ascending
-  rows.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
-  return rows;
-}
-
-async function main() {
-  const stid = process.env.PETSS_STID?.trim();
-  const datum = (process.env.PETSS_DATUM || "MLLW").trim();
-
-  if (!stid) die("PETSS_STID is required (e.g., 8531804).");
-
-  log("Running PETSS forecast updater via NOMADS…");
-  log("STID:", stid);
-  log("DATUM (for metadata only):", datum);
-  log("Base:", BASE);
-
-  // 1) Find latest run dir
-  const baseHtml = await fetchText(BASE);
-  const runDir = listLatestProdDir(baseHtml);
-  log("Latest PETSS prod dir:", runDir);
-
-  // 2) Choose cycle tarball
-  const runHtml = await fetchText(BASE + runDir);
-  const tarball = chooseCycleTarball(runHtml);
-  log("Chosen cycle tarball:", tarball);
-
-  const cycleMatch = tarball.match(/petss\.(t\d{2}z)\.csv\.tar\.gz/);
-  const cycle = cycleMatch ? cycleMatch[1] : "unknown";
-
-  const url = BASE + runDir + tarball;
-  log("Downloading:", url);
-
-  // 3) Download + extract
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "petss-"));
-  const tgzPath = path.join(tmp, tarball);
-  await downloadFile(url, tgzPath);
-
-  const extractDir = path.join(tmp, "extract");
-  ensureDir(extractDir);
-
-  // Use system tar (available on ubuntu-latest)
-  execSync(`tar -xzf "${tgzPath}" -C "${extractDir}"`, { stdio: "inherit" });
-
-  // 4) Locate station file
-  const stationFile = findFileRecursive(extractDir, `${stid}.csv`);
-  if (!stationFile) {
-    // Dump a quick directory tree depth 3 to help if this ever changes
-    const listing = execSync(`find "${extractDir}" -maxdepth 4 -type f | head -n 200`, { encoding: "utf8" });
-    throw new Error(`Could not find ${stid}.csv under extract dir.\nSample files:\n${listing}`);
+  // If method changed, clear events to avoid mixing old peak scheme with crest-anchored scheme
+  if (cache.method !== METHOD) {
+    console.log(`Method changed (${cache.method || "none"} -> ${METHOD}). Clearing events for clean rebuild.`);
+    cache.method = METHOD;
+    cache.events = [];
+    // Leave lastProcessedISO as-is; you can run a backfill range to rebuild.
   }
-  log("Station CSV file:", stationFile);
 
-  const stationText = fs.readFileSync(stationFile, "utf8");
+  const backfillYear = parseArg("--backfill-year");
+  const backfillFrom = parseArg("--backfill-from");
+  const backfillTo = parseArg("--backfill-to");
 
-  // Always write a debug snapshot of the station file (small and helpful)
-  ensureDir("data");
-  fs.writeFileSync("data/petss_station_debug.txt", stationText.split(/\r?\n/).slice(0, 250).join("\n") + "\n", "utf8");
+  let startISO, endISO;
 
-  // 5) Parse NOMADS station CSV and keep ensemble mean TWL
-  const rows = parseNomadsStationCsv(stationText, stid);
+  if (backfillYear) {
+    const y = Number(backfillYear);
+    if (!Number.isFinite(y) || y < 1900 || y > 3000) die("Invalid --backfill-year=YYYY");
+    startISO = new Date(Date.UTC(y, 0, 1, 0, 0, 0)).toISOString();
+    endISO = new Date(Date.UTC(y + 1, 0, 1, 0, 0, 0)).toISOString();
+    console.log(`Backfill year ${y}: ${startISO} → ${endISO}`);
+  } else if (backfillFrom && backfillTo) {
+    const y1 = Number(backfillFrom);
+    const y2 = Number(backfillTo);
+    if (!Number.isFinite(y1) || !Number.isFinite(y2)) die("Invalid --backfill-from / --backfill-to (must be years)");
+    const lo = Math.min(y1, y2);
+    const hi = Math.max(y1, y2);
+    if (lo < 1900 || hi > 3000) die("Backfill range out of bounds.");
+    startISO = new Date(Date.UTC(lo, 0, 1, 0, 0, 0)).toISOString();
+    endISO = new Date(Date.UTC(hi + 1, 0, 1, 0, 0, 0)).toISOString();
+    console.log(`Backfill years ${lo}–${hi}: ${startISO} → ${endISO}`);
+  } else {
+    const last = clampISO(cache.lastProcessedISO || "2000-01-01T00:00:00Z");
+    if (!last) die("Cache lastProcessedISO is invalid ISO.");
+    startISO = addHoursISO(last, -BUFFER_HOURS);
+    endISO = isoNow();
+    console.log(`Incremental: ${startISO} → ${endISO}`);
+  }
 
-  // 6) Write outputs
-  const outCsv = [
-    "time_utc_iso,twl_ft_mllw,tide_ft_mllw,surge_ft,src_time",
-    ...rows.map(r => {
-      const tide = (r.tide == null ? "" : r.tide);
-      const surge = (r.surge == null ? "" : r.surge);
-      return `${r.t},${r.twl},${tide},${surge},${r.src_time}`;
-    })
-  ].join("\n") + "\n";
+  // 1) Fetch observed series from USGS
+  const series = await fetchUSGSIV({ startISO, endISO });
+  if (!series.length) {
+    console.log("No series points returned; nothing to do.");
+    return;
+  }
 
-  fs.writeFileSync("data/petss_forecast.csv", outCsv, "utf8");
-  fs.writeFileSync("data/petss_forecast.json", JSON.stringify(rows, null, 2) + "\n", "utf8");
+  // 2) Fetch predicted high tide crest times from NOAA (pad window slightly)
+  const predStartISO = addHoursISO(startISO, -3);
+  const predEndISO = addHoursISO(endISO, +3);
 
-  const meta = {
-    stid,
-    datum,
-    run_dir: runDir.replace(/\/$/, ""),
-    cycle,
-    source_url: url,
-    updated_utc: new Date().toISOString(),
-    n_points: rows.length,
-    notes: "Ensemble mean plotted as TWL (fallback to TIDE+SURGE when TWL missing)."
-  };
-  fs.writeFileSync("data/petss_meta.json", JSON.stringify(meta, null, 2) + "\n", "utf8");
+  const predictedHighs = await fetchNOAAHiloPredictionsHighs({ startISO: predStartISO, endISO: predEndISO });
+  if (!predictedHighs.length) {
+    console.log("No NOAA predicted highs returned; nothing to do.");
+    return;
+  }
 
-  log(`Wrote ${rows.length} points → data/petss_forecast.csv + .json + meta`);
+  // 3) Build crest-anchored events
+  const crestHighs = buildCrestAnchoredHighEvents({
+    series,
+    predictedHighs,
+    thresholdsNAVD88: THRESH_NAVD88
+  });
+
+  // 4) Merge/dedupe by crest time (stable key)
+  const existing = Array.isArray(cache.events) ? cache.events : [];
+  const byCrest = new Map();
+
+  for (const e of existing) {
+    if (e?.crest) byCrest.set(String(e.crest), e);
+  }
+
+  let added = 0;
+  let updated = 0;
+
+  for (const e of crestHighs) {
+    const key = String(e.crest);
+    const prev = byCrest.get(key);
+
+    if (!prev) {
+      existing.push(e);
+      byCrest.set(key, e);
+      added++;
+      continue;
+    }
+
+    // Update if we now have a better observed max (or previous was missing/NaN)
+    const prevFt = Number(prev.ft);
+    const newFt = Number(e.ft);
+
+    // If the old one exists but was based on sparse data and later we capture a higher max,
+    // prefer the higher max.
+    if (!Number.isFinite(prevFt) || (Number.isFinite(newFt) && newFt > prevFt)) {
+      prev.t = e.t;
+      prev.ft = e.ft;
+      prev.type = e.type;
+      prev.kind = e.kind;
+      prev.crest = e.crest;
+      updated++;
+    }
+  }
+
+  // Keep chronological order
+  existing.sort((a, b) => new Date(a.t) - new Date(b.t));
+  cache.events = existing;
+
+  // Advance lastProcessedISO to newest timestamp in the fetched USGS series
+  const newestT = series[series.length - 1]?.t;
+  if (newestT) cache.lastProcessedISO = new Date(newestT).toISOString();
+
+  saveJSON(CACHE_PATH, cache);
+
+  console.log(`Fetched USGS points:         ${series.length}`);
+  console.log(`NOAA predicted HIGH crests:  ${predictedHighs.length}`);
+  console.log(`Crest-anchored events built: ${crestHighs.length}`);
+  console.log(`Events added:               ${added}`);
+  console.log(`Events updated:             ${updated}`);
+  console.log(`New lastProcessedISO:       ${cache.lastProcessedISO}`);
 }
 
-main().catch((e) => {
-  try {
-    ensureDir("data");
-    fs.writeFileSync("data/petss_error.txt", String(e && (e.stack || e.message || e)) + "\n", "utf8");
-  } catch (_) {}
-  die("PETSS update failed:", e);
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
 });
